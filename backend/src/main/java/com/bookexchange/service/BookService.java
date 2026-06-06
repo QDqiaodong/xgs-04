@@ -12,6 +12,8 @@ import com.bookexchange.repository.CityRepository;
 import com.bookexchange.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -27,6 +29,8 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 public class BookService {
+
+    private static final Logger log = LoggerFactory.getLogger(BookService.class);
 
     private final BookRepository bookRepository;
     private final CategoryRepository categoryRepository;
@@ -73,16 +77,40 @@ public class BookService {
 
     public Book getBookById(Long id) {
         String key = BORROWED_BOOK_KEY + id;
-        Book cachedBook = (Book) redisTemplate.opsForValue().get(key);
+        Book cachedBook = safeReadBook(key);
         if (cachedBook != null) {
             return cachedBook;
         }
 
         Book book = bookRepository.findById(id).orElse(null);
         if (book != null && !book.getAvailable()) {
-            redisTemplate.opsForValue().set(key, book, 1, TimeUnit.HOURS);
+            try {
+                redisTemplate.opsForValue().set(key, book, 1, TimeUnit.HOURS);
+            } catch (Exception e) {
+                log.warn("Failed to cache book {}: {}", id, e.getMessage());
+            }
         }
         return book;
+    }
+
+    private Book safeReadBook(String key) {
+        try {
+            Object value = redisTemplate.opsForValue().get(key);
+            if (value == null) {
+                return null;
+            }
+            if (value instanceof Book) {
+                return (Book) value;
+            }
+            log.warn("Unexpected cache value type for key {}: {}", key, value.getClass().getName());
+        } catch (Exception e) {
+            log.warn("Failed to read cache for key {}: {}", key, e.getMessage());
+            try {
+                redisTemplate.delete(key);
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
     }
 
     public List<Book> getBooksByOwnerId(Long ownerId) {
@@ -154,16 +182,24 @@ public class BookService {
             bookRepository.save(book);
 
             String key = BORROWED_BOOK_KEY + bookId;
-            if (available) {
-                redisTemplate.delete(key);
-            } else {
-                redisTemplate.opsForValue().set(key, book, 1, TimeUnit.HOURS);
+            try {
+                if (available) {
+                    redisTemplate.delete(key);
+                } else {
+                    redisTemplate.opsForValue().set(key, book, 1, TimeUnit.HOURS);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to update cache for book {}: {}", bookId, e.getMessage());
             }
         }
     }
 
     public void deleteBook(Long id) {
         bookRepository.deleteById(id);
-        redisTemplate.delete(BORROWED_BOOK_KEY + id);
+        try {
+            redisTemplate.delete(BORROWED_BOOK_KEY + id);
+        } catch (Exception e) {
+            log.warn("Failed to delete cache for book {}: {}", id, e.getMessage());
+        }
     }
 }

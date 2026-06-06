@@ -7,8 +7,10 @@
           <el-tooltip :content="favorited ? '取消收藏' : '收藏'" placement="top">
             <el-button
               class="favorite-btn"
+              :class="{ 'is-loading': checkingFavorite }"
               :type="favorited ? 'danger' : 'default'"
               :icon="favorited ? StarFilled : Star"
+              :loading="checkingFavorite"
               circle
               size="small"
               text
@@ -47,10 +49,15 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Star, StarFilled } from '@element-plus/icons-vue'
-import { isFavorited, toggleFavorite } from '@/store/favorites'
+import {
+  isFavorited,
+  toggleFavorite,
+  checkFavorite,
+  favoriteStore
+} from '@/store/favorites'
 
 const props = defineProps({
   book: {
@@ -74,16 +81,40 @@ const props = defineProps({
 const emit = defineEmits(['borrow', 'favorite-change'])
 
 const router = useRouter()
+const checkingFavorite = ref(false)
+const localFavorited = ref(null)
 
 const isOwner = computed(() => {
   return props.currentUserId && props.book.owner?.id === props.currentUserId
 })
 
-const favorited = computed(() => isFavorited(props.book.id))
+const favorited = computed(() => {
+  if (localFavorited.value !== null) {
+    return localFavorited.value
+  }
+  return isFavorited(props.book.id)
+})
+
+const lazyCheckFavorite = async () => {
+  if (favoriteStore.listLoaded) {
+    return
+  }
+  if (favoriteStore.perBookStatus.has(props.book.id)) {
+    return
+  }
+  checkingFavorite.value = true
+  try {
+    const result = await checkFavorite(props.book.id, props.currentUserId || 1)
+    localFavorited.value = result
+  } finally {
+    checkingFavorite.value = false
+  }
+}
 
 const handleToggleFavorite = async () => {
   const result = await toggleFavorite(props.book.id, props.currentUserId || 1)
   if (result !== null) {
+    localFavorited.value = result
     emit('favorite-change', { bookId: props.book.id, favorited: result })
   }
 }
@@ -93,6 +124,17 @@ const handleCardClick = () => {
     router.push(`/book/${props.book.id}`)
   }
 }
+
+onMounted(() => {
+  lazyCheckFavorite()
+})
+
+watch(() => props.book?.id, () => {
+  localFavorited.value = null
+  if (props.book?.id != null) {
+    lazyCheckFavorite()
+  }
+})
 </script>
 
 <style scoped>
@@ -126,7 +168,7 @@ const handleCardClick = () => {
   transition: transform 0.2s ease;
 }
 
-.favorite-btn:hover {
+.favorite-btn:hover:not(:disabled) {
   transform: scale(1.15);
 }
 

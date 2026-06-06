@@ -7,6 +7,8 @@ import com.bookexchange.repository.BookRepository;
 import com.bookexchange.repository.FavoriteRepository;
 import com.bookexchange.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,8 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class FavoriteService {
 
+    private static final Logger log = LoggerFactory.getLogger(FavoriteService.class);
+
     private final FavoriteRepository favoriteRepository;
     private final UserRepository userRepository;
     private final BookRepository bookRepository;
@@ -30,8 +34,7 @@ public class FavoriteService {
 
     public List<Book> getFavoriteBooks(Long userId) {
         String key = FAVORITE_KEY_PREFIX + userId;
-        @SuppressWarnings("unchecked")
-        List<Book> cachedBooks = (List<Book>) redisTemplate.opsForValue().get(key);
+        List<Book> cachedBooks = safeReadBookList(key);
         if (cachedBooks != null) {
             return cachedBooks;
         }
@@ -45,7 +48,11 @@ public class FavoriteService {
             }
         }
 
-        redisTemplate.opsForValue().set(key, books, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
+        try {
+            redisTemplate.opsForValue().set(key, books, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
+        } catch (Exception e) {
+            log.warn("Failed to cache favorite books for user {}: {}", userId, e.getMessage());
+        }
         return books;
     }
 
@@ -55,14 +62,58 @@ public class FavoriteService {
 
     public long getFavoriteCount(Long userId) {
         String key = FAVORITE_COUNT_KEY_PREFIX + userId;
-        Long cachedCount = (Long) redisTemplate.opsForValue().get(key);
+        Long cachedCount = safeReadLong(key);
         if (cachedCount != null) {
             return cachedCount;
         }
 
         long count = favoriteRepository.countByUserId(userId);
-        redisTemplate.opsForValue().set(key, count, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
+        try {
+            redisTemplate.opsForValue().set(key, count, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
+        } catch (Exception e) {
+            log.warn("Failed to cache favorite count for user {}: {}", userId, e.getMessage());
+        }
         return count;
+    }
+
+    private Long safeReadLong(String key) {
+        try {
+            Object value = redisTemplate.opsForValue().get(key);
+            if (value instanceof Number) {
+                return ((Number) value).longValue();
+            }
+            if (value != null) {
+                log.warn("Unexpected cache value type for key {}: {}", key, value.getClass().getName());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read cache for key {}: {}", key, e.getMessage());
+            try {
+                redisTemplate.delete(key);
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Book> safeReadBookList(String key) {
+        try {
+            Object value = redisTemplate.opsForValue().get(key);
+            if (value == null) {
+                return null;
+            }
+            if (value instanceof List) {
+                return (List<Book>) value;
+            }
+            log.warn("Unexpected cache value type for key {}: {}", key, value.getClass().getName());
+        } catch (Exception e) {
+            log.warn("Failed to read cache for key {}: {}", key, e.getMessage());
+            try {
+                redisTemplate.delete(key);
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
     }
 
     @Transactional
@@ -118,7 +169,11 @@ public class FavoriteService {
     }
 
     private void evictCache(Long userId) {
-        redisTemplate.delete(FAVORITE_KEY_PREFIX + userId);
-        redisTemplate.delete(FAVORITE_COUNT_KEY_PREFIX + userId);
+        try {
+            redisTemplate.delete(FAVORITE_KEY_PREFIX + userId);
+            redisTemplate.delete(FAVORITE_COUNT_KEY_PREFIX + userId);
+        } catch (Exception e) {
+            log.warn("Failed to evict cache for user {}: {}", userId, e.getMessage());
+        }
     }
 }

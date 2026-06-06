@@ -17,6 +17,7 @@
                 class="favorite-btn"
                 :type="favorited ? 'danger' : 'default'"
                 :icon="favorited ? StarFilled : Star"
+                :loading="checkingFavorite"
                 circle
                 size="large"
                 text
@@ -76,12 +77,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, Star, StarFilled } from '@element-plus/icons-vue'
 import { bookAPI, borrowRecordAPI } from '@/api'
-import { isFavorited, toggleFavorite, loadFavorites } from '@/store/favorites'
+import {
+  isFavorited,
+  toggleFavorite,
+  loadFavorites,
+  checkFavorite,
+  favoriteStore,
+  ensureFavoriteCount
+} from '@/store/favorites'
 import BorrowDialog from '@/components/BorrowDialog.vue'
 
 const route = useRoute()
@@ -91,12 +99,32 @@ const currentUserId = 1
 const book = ref(null)
 const loading = ref(false)
 const borrowDialogVisible = ref(false)
+const checkingFavorite = ref(false)
+const localFavorited = ref(null)
 
 const isOwner = computed(() => {
   return currentUserId && book.value?.owner?.id === currentUserId
 })
 
-const favorited = computed(() => book.value ? isFavorited(book.value.id) : false)
+const favorited = computed(() => {
+  if (localFavorited.value !== null) {
+    return localFavorited.value
+  }
+  return book.value ? isFavorited(book.value.id) : false
+})
+
+const lazyCheckFavorite = async () => {
+  if (!book.value) return
+  if (favoriteStore.listLoaded) return
+  if (favoriteStore.perBookStatus.has(book.value.id)) return
+  checkingFavorite.value = true
+  try {
+    const result = await checkFavorite(book.value.id, currentUserId)
+    localFavorited.value = result
+  } finally {
+    checkingFavorite.value = false
+  }
+}
 
 const loadBook = async () => {
   loading.value = true
@@ -105,6 +133,8 @@ const loadBook = async () => {
     const res = await bookAPI.getById(bookId)
     if (res.code === 200) {
       book.value = res.data
+      localFavorited.value = null
+      lazyCheckFavorite()
     } else {
       ElMessage.error(res.message || '加载图书详情失败')
     }
@@ -117,7 +147,10 @@ const loadBook = async () => {
 
 const handleToggleFavorite = async () => {
   if (book.value) {
-    await toggleFavorite(book.value.id, currentUserId)
+    const result = await toggleFavorite(book.value.id, currentUserId)
+    if (result !== null) {
+      localFavorited.value = result
+    }
   }
 }
 
@@ -151,9 +184,18 @@ const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
 
-onMounted(() => {
-  loadFavorites()
+onMounted(async () => {
+  const success = await loadFavorites()
+  if (!success) {
+    ensureFavoriteCount()
+  }
   loadBook()
+})
+
+watch(() => route.params.id, () => {
+  if (route.params.id) {
+    loadBook()
+  }
 })
 </script>
 

@@ -38,15 +38,18 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { loadFavorites, getFavoriteCount } from '@/store/favorites'
+import { loadFavorites, getFavoriteCount, ensureFavoriteCount } from '@/store/favorites'
 
 const route = useRoute()
 const activeMenu = computed(() => route.path)
 
 const favoriteCount = computed(() => getFavoriteCount())
 
-onMounted(() => {
-  loadFavorites()
+onMounted(async () => {
+  const success = await loadFavorites()
+  if (!success) {
+    ensureFavoriteCount()
+  }
 })
 </script>
 
