@@ -2,13 +2,25 @@
   <div>
     <div class="page-header">
       <h2 class="page-title">📚 我的藏书</h2>
-      <el-button type="primary" @click="showAddDialog = true">
-        <el-icon><Plus /></el-icon>
-        添加图书
-      </el-button>
+      <div class="header-actions">
+        <el-radio-group v-model="viewModeStore.viewMode" size="default" class="view-switch">
+          <el-radio-button :value="VIEW_MODES.GRID">
+            <el-icon><Grid /></el-icon>
+            <span class="view-switch-label">网格</span>
+          </el-radio-button>
+          <el-radio-button :value="VIEW_MODES.LIST">
+            <el-icon><List /></el-icon>
+            <span class="view-switch-label">列表</span>
+          </el-radio-button>
+        </el-radio-group>
+        <el-button type="primary" @click="showAddDialog = true">
+          <el-icon><Plus /></el-icon>
+          添加图书
+        </el-button>
+      </div>
     </div>
 
-    <el-row :gutter="20">
+    <el-row v-if="viewModeStore.isGridView()" :gutter="20">
       <el-col
         v-for="book in bookList"
         :key="book.id"
@@ -27,6 +39,20 @@
       </el-col>
     </el-row>
 
+    <div v-else class="book-list-container">
+      <BookListItem
+        v-for="book in bookList"
+        :key="book.id"
+        :book="book"
+        :current-user-id="currentUserId"
+      >
+        <template #actions="{ book }">
+          <el-button size="small" @click="handleEdit(book)">编辑</el-button>
+          <el-button size="small" type="danger" @click="handleDelete(book)">删除</el-button>
+        </template>
+      </BookListItem>
+    </div>
+
     <el-empty v-if="bookList.length === 0" description="暂无藏书，快去添加吧" />
 
     <BookForm
@@ -41,10 +67,14 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Grid, List } from '@element-plus/icons-vue'
 import { bookAPI } from '@/api'
+import { useMyBooksViewMode, VIEW_MODES } from '@/store/viewMode'
 import BookCard from '@/components/BookCard.vue'
+import BookListItem from '@/components/BookListItem.vue'
 import BookForm from '@/components/BookForm.vue'
+
+const viewModeStore = useMyBooksViewMode()
 
 const currentUserId = 1
 const bookList = ref([])
@@ -120,5 +150,30 @@ onMounted(() => {
   margin: 0;
   font-size: 24px;
   color: #303133;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.view-switch {
+  display: flex;
+  align-items: center;
+}
+
+.view-switch :deep(.el-radio-button__inner) {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.view-switch-label {
+  font-size: 14px;
+}
+
+.book-list-container {
+  margin-bottom: 20px;
 }
 </style>

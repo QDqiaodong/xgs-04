@@ -1,13 +1,25 @@
 <template>
   <div>
-    <h2 class="page-title">📖 图书广场</h2>
-    
+    <div class="page-header">
+      <h2 class="page-title">📖 图书广场</h2>
+      <el-radio-group v-model="viewModeStore.viewMode" size="default" class="view-switch">
+        <el-radio-button :value="VIEW_MODES.GRID">
+          <el-icon><Grid /></el-icon>
+          <span class="view-switch-label">网格</span>
+        </el-radio-button>
+        <el-radio-button :value="VIEW_MODES.LIST">
+          <el-icon><List /></el-icon>
+          <span class="view-switch-label">列表</span>
+        </el-radio-button>
+      </el-radio-group>
+    </div>
+
     <BookFilter
       v-model="filterParams"
       @filter-change="handleFilterChange"
     />
 
-    <el-row :gutter="20">
+    <el-row v-if="viewModeStore.isGridView()" :gutter="20">
       <el-col
         v-for="book in bookList"
         :key="book.id"
@@ -24,6 +36,16 @@
         />
       </el-col>
     </el-row>
+
+    <div v-else class="book-list-container">
+      <BookListItem
+        v-for="book in bookList"
+        :key="book.id"
+        :book="book"
+        :current-user-id="currentUserId"
+        @borrow="handleBorrow"
+      />
+    </div>
 
     <el-empty v-if="bookList.length === 0 && !loading" description="暂无符合条件的图书" />
 
@@ -48,11 +70,16 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Grid, List } from '@element-plus/icons-vue'
 import { bookAPI, borrowRecordAPI } from '@/api'
 import { loadFavorites, ensureFavoriteCount } from '@/store/favorites'
+import { useBookSquareViewMode, VIEW_MODES } from '@/store/viewMode'
 import BookFilter from '@/components/BookFilter.vue'
 import BookCard from '@/components/BookCard.vue'
+import BookListItem from '@/components/BookListItem.vue'
 import BorrowDialog from '@/components/BorrowDialog.vue'
+
+const viewModeStore = useBookSquareViewMode()
 
 const currentUserId = 1
 const bookList = ref([])
@@ -121,9 +148,35 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.page-title {
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
+}
+
+.page-title {
+  margin: 0;
   font-size: 24px;
   color: #303133;
+}
+
+.view-switch {
+  display: flex;
+  align-items: center;
+}
+
+.view-switch :deep(.el-radio-button__inner) {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.view-switch-label {
+  font-size: 14px;
+}
+
+.book-list-container {
+  margin-bottom: 20px;
 }
 </style>
