@@ -76,4 +76,4 @@ docker/mysql/data/
 docker/mysql/logs/
 
 # ====================== 9、本地打包发布产物 ======================
-release/*.tar.gz
+release/*.tar.gzfrontend/package-lock.json
