@@ -49,6 +49,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { bookAPI, borrowRecordAPI } from '@/api'
+import { loadFavorites } from '@/store/favorites'
 import BookFilter from '@/components/BookFilter.vue'
 import BookCard from '@/components/BookCard.vue'
 import BorrowDialog from '@/components/BorrowDialog.vue'
@@ -111,6 +112,7 @@ const submitBorrow = async (data) => {
 }
 
 onMounted(() => {
+  loadFavorites()
   loadBooks()
 })
 </script>

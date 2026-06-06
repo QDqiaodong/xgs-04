@@ -7,9 +7,19 @@ const routes = [
     component: () => import('@/views/BookSquare.vue')
   },
   {
+    path: '/book/:id',
+    name: 'BookDetail',
+    component: () => import('@/views/BookDetail.vue')
+  },
+  {
     path: '/my-books',
     name: 'MyBooks',
     component: () => import('@/views/MyBooks.vue')
+  },
+  {
+    path: '/my-favorites',
+    name: 'MyFavorites',
+    component: () => import('@/views/MyFavorites.vue')
   },
   {
     path: '/borrow-apply',

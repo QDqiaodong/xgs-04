@@ -73,3 +73,16 @@ CREATE TABLE IF NOT EXISTS borrow_record (
     FOREIGN KEY (borrower_id) REFERENCES user(id),
     FOREIGN KEY (owner_id) REFERENCES user(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS favorite (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    book_id BIGINT NOT NULL,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_user_book (user_id, book_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_book_id (book_id),
+    INDEX idx_create_time (create_time),
+    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
+    FOREIGN KEY (book_id) REFERENCES book(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

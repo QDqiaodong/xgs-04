@@ -1,11 +1,24 @@
 <template>
-  <el-card class="book-card" shadow="hover">
+  <el-card class="book-card" shadow="hover" @click="handleCardClick">
     <template #header>
       <div class="card-header">
         <span class="book-title">{{ book.title }}</span>
-        <el-tag :type="book.available ? 'success' : 'info'" size="small">
-          {{ book.available ? '可借' : '已借出' }}
-        </el-tag>
+        <div class="header-actions">
+          <el-tooltip :content="favorited ? '取消收藏' : '收藏'" placement="top">
+            <el-button
+              class="favorite-btn"
+              :type="favorited ? 'danger' : 'default'"
+              :icon="favorited ? StarFilled : Star"
+              circle
+              size="small"
+              text
+              @click.stop="handleToggleFavorite"
+            />
+          </el-tooltip>
+          <el-tag :type="book.available ? 'success' : 'info'" size="small">
+            {{ book.available ? '可借' : '已借出' }}
+          </el-tag>
+        </div>
       </div>
     </template>
     <div class="book-info">
@@ -24,7 +37,7 @@
           v-if="book.available && book.canBorrow && !isOwner"
           type="primary"
           size="small"
-          @click="$emit('borrow', book)"
+          @click.stop="$emit('borrow', book)"
         >
           申请借阅
         </el-button>
@@ -35,6 +48,9 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { Star, StarFilled } from '@element-plus/icons-vue'
+import { isFavorited, toggleFavorite } from '@/store/favorites'
 
 const props = defineProps({
   book: {
@@ -48,14 +64,35 @@ const props = defineProps({
   showActions: {
     type: Boolean,
     default: true
+  },
+  clickable: {
+    type: Boolean,
+    default: true
   }
 })
 
-const emit = defineEmits(['borrow'])
+const emit = defineEmits(['borrow', 'favorite-change'])
+
+const router = useRouter()
 
 const isOwner = computed(() => {
   return props.currentUserId && props.book.owner?.id === props.currentUserId
 })
+
+const favorited = computed(() => isFavorited(props.book.id))
+
+const handleToggleFavorite = async () => {
+  const result = await toggleFavorite(props.book.id, props.currentUserId || 1)
+  if (result !== null) {
+    emit('favorite-change', { bookId: props.book.id, favorited: result })
+  }
+}
+
+const handleCardClick = () => {
+  if (props.clickable) {
+    router.push(`/book/${props.book.id}`)
+  }
+}
 </script>
 
 <style scoped>
@@ -63,12 +100,34 @@ const isOwner = computed(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.book-card:hover {
+  transform: translateY(-2px);
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.favorite-btn {
+  padding: 4px;
+  font-size: 18px;
+  transition: transform 0.2s ease;
+}
+
+.favorite-btn:hover {
+  transform: scale(1.15);
 }
 
 .book-title {

@@ -51,4 +51,13 @@ export const borrowRecordAPI = {
   getFilter: (userId) => api.get(`/borrow-records/filter/${userId}`)
 }
 
+export const favoriteAPI = {
+  getByUser: (userId) => api.get(`/favorites/user/${userId}`),
+  check: (userId, bookId) => api.get(`/favorites/user/${userId}/check/${bookId}`),
+  getCount: (userId) => api.get(`/favorites/user/${userId}/count`),
+  add: (userId, bookId) => api.post('/favorites', { userId, bookId }),
+  remove: (userId, bookId) => api.delete(`/favorites/user/${userId}/book/${bookId}`),
+  toggle: (userId, bookId) => api.post('/favorites/toggle', { userId, bookId })
+}
+
 export default api
