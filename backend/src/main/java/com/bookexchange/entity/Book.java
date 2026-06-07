@@ -58,4 +58,10 @@ public class Book implements Serializable {
 
     @UpdateTimestamp
     private LocalDateTime updateTime;
+
+    @Transient
+    private Double averageRating;
+
+    @Transient
+    private Integer reviewCount;
 }

@@ -25,9 +25,23 @@
               />
             </el-tooltip>
           </h2>
-          <el-tag :type="book.available ? 'success' : 'info'" size="large" style="margin-top: 8px">
-            {{ book.available ? '可借' : '已借出' }}
-          </el-tag>
+          <div class="header-tags">
+            <el-tag :type="book.available ? 'success' : 'info'" size="large">
+              {{ book.available ? '可借' : '已借出' }}
+            </el-tag>
+            <div class="rating-summary" v-if="book.reviewCount > 0">
+              <el-rate
+                :model-value="book.averageRating"
+                disabled
+                show-score
+                text-color="#ff9900"
+                score-template="{value}"
+                :max="5"
+              />
+              <span class="review-count-total">{{ book.reviewCount }} 条评价</span>
+            </div>
+            <span class="no-rating" v-else>暂无评分</span>
+          </div>
         </div>
       </div>
 
@@ -66,7 +80,95 @@
       </div>
     </el-card>
 
-    <el-empty v-else description="图书不存在或已被删除" />
+    <el-card v-else description="图书不存在或已被删除" />
+
+    <el-card v-if="book" class="review-section" shadow="never">
+      <div class="review-header">
+        <h3>读者评价</h3>
+        <el-radio-group v-model="reviewSortBy" size="default" @change="loadReviews">
+          <el-radio-button value="latest">最新</el-radio-button>
+          <el-radio-button value="rating">评分最高</el-radio-button>
+        </el-radio-group>
+      </div>
+
+      <el-alert
+        v-if="canReview && !hasReviewed"
+        type="success"
+        :closable="false"
+        show-icon
+        class="review-alert"
+      >
+        <template #title>
+          <div class="review-alert-content">
+            <span>您已完成借阅，请对这本图书进行评价</span>
+            <el-button type="primary" size="small" @click="showReviewForm = true">去评价</el-button>
+          </div>
+        </template>
+      </el-alert>
+
+      <el-alert
+        v-if="hasReviewed"
+        type="info"
+        :closable="false"
+        show-icon
+        class="review-alert"
+      >
+        <template #title>您已评价过这本图书</template>
+      </el-alert>
+
+      <div v-if="showReviewForm" class="review-form-wrapper">
+        <el-divider />
+        <h4>发表评价</h4>
+        <el-form :model="reviewForm" label-width="80px" ref="reviewFormRef">
+          <el-form-item label="评分" required>
+            <el-rate v-model="reviewForm.rating" :max="5" />
+          </el-form-item>
+          <el-form-item label="评价内容">
+            <el-input
+              v-model="reviewForm.content"
+              type="textarea"
+              :rows="4"
+              placeholder="请分享您的借阅体验和对图书的评价（选填）"
+              maxlength="1000"
+              show-word-limit
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="submittingReview" @click="submitReview">提交评价</el-button>
+            <el-button @click="showReviewForm = false">取消</el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+
+      <el-divider />
+
+      <div v-loading="reviewsLoading">
+        <div v-if="reviewList.length > 0" class="review-list">
+          <div v-for="review in reviewList" :key="review.id" class="review-item">
+            <div class="review-item-header">
+              <span class="reviewer-name">{{ review.user?.nickname || '匿名用户' }}</span>
+              <el-rate :model-value="review.rating" disabled :max="5" size="small" />
+              <span class="review-time">{{ formatDate(review.createTime) }}</span>
+            </div>
+            <div class="review-item-content" v-if="review.content">
+              {{ review.content }}
+            </div>
+          </div>
+        </div>
+        <el-empty v-else description="暂无评价，快来抢沙发吧！" :image-size="80" />
+
+        <el-pagination
+          v-if="reviewTotal > 0"
+          v-model:current-page="reviewPage"
+          v-model:page-size="reviewPageSize"
+          :total="reviewTotal"
+          layout="total, prev, pager, next, jumper"
+          style="margin-top: 20px; justify-content: center"
+          @current-change="loadReviews"
+          @size-change="handleReviewPageSizeChange"
+        />
+      </div>
+    </el-card>
 
     <BorrowDialog
       v-model="borrowDialogVisible"
@@ -81,7 +183,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, Star, StarFilled } from '@element-plus/icons-vue'
-import { bookAPI, borrowRecordAPI } from '@/api'
+import { bookAPI, borrowRecordAPI, reviewAPI } from '@/api'
 import {
   isFavorited,
   toggleFavorite,
@@ -101,6 +203,25 @@ const loading = ref(false)
 const borrowDialogVisible = ref(false)
 const checkingFavorite = ref(false)
 const localFavorited = ref(null)
+
+const reviewList = ref([])
+const reviewsLoading = ref(false)
+const reviewPage = ref(1)
+const reviewPageSize = ref(5)
+const reviewTotal = ref(0)
+const reviewSortBy = ref('latest')
+
+const showReviewForm = ref(false)
+const submittingReview = ref(false)
+const reviewFormRef = ref(null)
+const reviewForm = ref({
+  rating: 5,
+  content: ''
+})
+
+const canReview = ref(false)
+const hasReviewed = ref(false)
+const borrowRecordForReview = ref(null)
 
 const isOwner = computed(() => {
   return currentUserId && book.value?.owner?.id === currentUserId
@@ -135,6 +256,7 @@ const loadBook = async () => {
       book.value = res.data
       localFavorited.value = null
       lazyCheckFavorite()
+      checkReviewEligibility()
     } else {
       ElMessage.error(res.message || '加载图书详情失败')
     }
@@ -142,6 +264,87 @@ const loadBook = async () => {
     ElMessage.error('加载图书详情失败')
   } finally {
     loading.value = false
+  }
+}
+
+const checkReviewEligibility = async () => {
+  if (!book.value) return
+  try {
+    const res = await borrowRecordAPI.getByBorrower(currentUserId)
+    if (res.code === 200) {
+      const returnedRecords = res.data.filter(
+        r => r.book?.id === book.value.id && r.status === 'RETURNED'
+      )
+      if (returnedRecords.length > 0) {
+        canReview.value = true
+        borrowRecordForReview.value = returnedRecords[0]
+        const reviewRes = await reviewAPI.hasReviewedBorrowRecord(returnedRecords[0].id)
+        if (reviewRes.code === 200) {
+          hasReviewed.value = reviewRes.data
+        }
+      }
+    }
+  } catch (e) {
+    console.error('检查评价资格失败', e)
+  }
+}
+
+const loadReviews = async () => {
+  if (!book.value) return
+  reviewsLoading.value = true
+  try {
+    const sortParam = reviewSortBy.value === 'rating' ? 'rating' : 'latest'
+    const res = await reviewAPI.query({
+      bookId: book.value.id,
+      pageNum: reviewPage.value,
+      pageSize: reviewPageSize.value,
+      sortBy: sortParam
+    })
+    if (res.code === 200) {
+      reviewList.value = res.data.list
+      reviewTotal.value = res.data.total
+    }
+  } catch (e) {
+    ElMessage.error('加载评价失败')
+  } finally {
+    reviewsLoading.value = false
+  }
+}
+
+const handleReviewPageSizeChange = () => {
+  reviewPage.value = 1
+  loadReviews()
+}
+
+const submitReview = async () => {
+  if (!reviewForm.value.rating) {
+    ElMessage.warning('请选择评分')
+    return
+  }
+  submittingReview.value = true
+  try {
+    const res = await reviewAPI.create({
+      bookId: book.value.id,
+      userId: currentUserId,
+      borrowRecordId: borrowRecordForReview.value?.id,
+      rating: reviewForm.value.rating,
+      content: reviewForm.value.content
+    })
+    if (res.code === 200) {
+      ElMessage.success('评价提交成功')
+      showReviewForm.value = false
+      hasReviewed.value = true
+      reviewForm.value = { rating: 5, content: '' }
+      reviewPage.value = 1
+      loadBook()
+      loadReviews()
+    } else {
+      ElMessage.error(res.message || '评价提交失败')
+    }
+  } catch (e) {
+    ElMessage.error('评价提交失败')
+  } finally {
+    submittingReview.value = false
   }
 }
 
@@ -190,11 +393,14 @@ onMounted(async () => {
     ensureFavoriteCount()
   }
   loadBook()
+  loadReviews()
 })
 
 watch(() => route.params.id, () => {
   if (route.params.id) {
     loadBook()
+    reviewPage.value = 1
+    loadReviews()
   }
 })
 </script>
@@ -224,6 +430,30 @@ watch(() => route.params.id, () => {
   gap: 16px;
 }
 
+.header-tags {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.rating-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.review-count-total {
+  color: #909399;
+  font-size: 14px;
+}
+
+.no-rating {
+  color: #c0c4cc;
+  font-size: 14px;
+}
+
 .favorite-btn {
   font-size: 28px;
   transition: transform 0.2s ease;
@@ -251,5 +481,74 @@ watch(() => route.params.id, () => {
 .detail-actions {
   margin-top: 30px;
   text-align: center;
+}
+
+.review-section {
+  margin-top: 20px;
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.review-header h3 {
+  margin: 0;
+  color: #303133;
+}
+
+.review-alert {
+  margin-bottom: 16px;
+}
+
+.review-alert-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.review-form-wrapper h4 {
+  margin-bottom: 16px;
+  color: #303133;
+}
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.review-item {
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.review-item-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.reviewer-name {
+  font-weight: 600;
+  color: #303133;
+}
+
+.review-time {
+  color: #909399;
+  font-size: 13px;
+  margin-left: auto;
+}
+
+.review-item-content {
+  color: #606266;
+  line-height: 1.6;
+  white-space: pre-wrap;
 }
 </style>

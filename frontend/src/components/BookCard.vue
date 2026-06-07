@@ -24,6 +24,22 @@
       </div>
     </template>
     <div class="book-info">
+      <div class="rating-section" v-if="book.reviewCount > 0">
+        <div class="rating-stars">
+          <el-rate
+            :model-value="book.averageRating"
+            disabled
+            show-score
+            text-color="#ff9900"
+            score-template="{value}"
+            :max="5"
+          />
+        </div>
+        <span class="review-count">{{ book.reviewCount }} 条评价</span>
+      </div>
+      <div class="rating-section" v-else>
+        <span class="no-rating">暂无评分</span>
+      </div>
       <p><strong>作者：</strong>{{ book.author }}</p>
       <p><strong>分类：</strong>{{ book.category?.name }}</p>
       <p><strong>成色：</strong>{{ book.conditionLevel || '未填写' }}</p>
@@ -179,6 +195,30 @@ watch(() => props.book?.id, () => {
 
 .book-info {
   flex: 1;
+}
+
+.rating-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.rating-stars :deep(.el-rate) {
+  display: inline-flex;
+  align-items: center;
+}
+
+.review-count {
+  color: #909399;
+  font-size: 13px;
+}
+
+.no-rating {
+  color: #c0c4cc;
+  font-size: 13px;
 }
 
 .book-info p {

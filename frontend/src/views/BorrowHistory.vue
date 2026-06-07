@@ -149,6 +149,23 @@
         </template>
       </el-table-column>
       <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
+      <el-table-column label="评价" width="120" fixed="right">
+        <template #default="{ row }">
+          <template v-if="row.status === 'RETURNED' && row.borrower?.id === currentUserId">
+            <el-button
+              v-if="!row.reviewed"
+              type="primary"
+              size="small"
+              link
+              @click="openReviewDialog(row)"
+            >
+              去评价
+            </el-button>
+            <el-tag v-else type="success" size="small">已评价</el-tag>
+          </template>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
     </el-table>
 
     <el-pagination
@@ -162,6 +179,36 @@
       @current-change="handlePageChange"
       @size-change="handleSizeChange"
     />
+
+    <el-dialog
+      v-model="reviewDialogVisible"
+      title="评价图书"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="reviewForm" label-width="80px" ref="reviewFormRef">
+        <el-form-item label="图书">
+          <span>{{ currentReviewRecord?.book?.title }}</span>
+        </el-form-item>
+        <el-form-item label="评分" required prop="rating">
+          <el-rate v-model="reviewForm.rating" :max="5" />
+        </el-form-item>
+        <el-form-item label="评价内容">
+          <el-input
+            v-model="reviewForm.content"
+            type="textarea"
+            :rows="4"
+            placeholder="请分享您的借阅体验和对图书的评价（选填）"
+            maxlength="1000"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="reviewDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submittingReview" @click="submitReview">提交评价</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -169,7 +216,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Filter, ArrowDown, Search, Refresh } from '@element-plus/icons-vue'
-import { borrowRecordAPI, categoryAPI } from '@/api'
+import { borrowRecordAPI, categoryAPI, reviewAPI } from '@/api'
 
 const currentUserId = 1
 const historyList = ref([])
@@ -179,6 +226,15 @@ const pageSize = ref(20)
 const total = ref(0)
 const filterCollapsed = ref(false)
 const categories = ref([])
+
+const reviewDialogVisible = ref(false)
+const currentReviewRecord = ref(null)
+const submittingReview = ref(false)
+const reviewFormRef = ref(null)
+const reviewForm = ref({
+  rating: 5,
+  content: ''
+})
 
 const statusMap = {
   PENDING: { text: '待审核', type: 'warning' },
@@ -334,6 +390,43 @@ const loadCategories = async () => {
     }
   } catch (e) {
     console.error('加载分类失败', e)
+  }
+}
+
+const openReviewDialog = (record) => {
+  currentReviewRecord.value = record
+  reviewForm.value = {
+    rating: 5,
+    content: ''
+  }
+  reviewDialogVisible.value = true
+}
+
+const submitReview = async () => {
+  if (!reviewForm.value.rating) {
+    ElMessage.warning('请选择评分')
+    return
+  }
+  submittingReview.value = true
+  try {
+    const res = await reviewAPI.create({
+      bookId: currentReviewRecord.value.book.id,
+      userId: currentUserId,
+      borrowRecordId: currentReviewRecord.value.id,
+      rating: reviewForm.value.rating,
+      content: reviewForm.value.content
+    })
+    if (res.code === 200) {
+      ElMessage.success('评价提交成功')
+      reviewDialogVisible.value = false
+      loadHistory()
+    } else {
+      ElMessage.error(res.message || '评价提交失败')
+    }
+  } catch (e) {
+    ElMessage.error('评价提交失败')
+  } finally {
+    submittingReview.value = false
   }
 }
 

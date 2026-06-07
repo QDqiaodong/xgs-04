@@ -6,13 +6,12 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.io.Serializable;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
 @Entity
-@Table(name = "borrow_record")
-public class BorrowRecord implements Serializable {
+@Table(name = "book_review")
+public class Review implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -25,26 +24,18 @@ public class BorrowRecord implements Serializable {
     private Book book;
 
     @ManyToOne
-    @JoinColumn(name = "borrower_id", nullable = false)
-    private User borrower;
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @ManyToOne
-    @JoinColumn(name = "owner_id", nullable = false)
-    private User owner;
+    @JoinColumn(name = "borrow_record_id")
+    private BorrowRecord borrowRecord;
 
-    @Column(nullable = false, length = 20)
-    private String status;
+    @Column(nullable = false)
+    private Integer rating;
 
-    private LocalDate startDate;
-
-    private LocalDate endDate;
-
-    @Column(length = 200)
-    private String remark;
-
-    private LocalDateTime borrowTime;
-
-    private LocalDateTime returnTime;
+    @Column(length = 1000)
+    private String content;
 
     @CreationTimestamp
     @Column(updatable = false)
@@ -52,7 +43,4 @@ public class BorrowRecord implements Serializable {
 
     @UpdateTimestamp
     private LocalDateTime updateTime;
-
-    @Column(nullable = false)
-    private Boolean reviewed = false;
 }

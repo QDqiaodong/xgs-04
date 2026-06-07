@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS borrow_record (
     remark VARCHAR(200),
     borrow_time DATETIME,
     return_time DATETIME,
+    reviewed BOOLEAN DEFAULT FALSE NOT NULL,
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_book_id (book_id),
@@ -85,4 +86,24 @@ CREATE TABLE IF NOT EXISTS favorite (
     INDEX idx_create_time (create_time),
     FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
     FOREIGN KEY (book_id) REFERENCES book(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS book_review (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    book_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    borrow_record_id BIGINT,
+    rating INT NOT NULL,
+    content VARCHAR(1000),
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_book_id (book_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_borrow_record_id (borrow_record_id),
+    INDEX idx_create_time (create_time),
+    INDEX idx_rating (rating),
+    UNIQUE KEY uk_book_user (book_id, user_id),
+    FOREIGN KEY (book_id) REFERENCES book(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
+    FOREIGN KEY (borrow_record_id) REFERENCES borrow_record(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -9,6 +9,12 @@ public class PageResult<T> {
 
     private List<T> list;
     private long total;
+    private int pageNum;
+    private int pageSize;
+    private int totalPages;
+
+    public PageResult() {
+    }
 
     public PageResult(List<T> list, long total) {
         this.list = list;

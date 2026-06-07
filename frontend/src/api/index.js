@@ -61,4 +61,15 @@ export const favoriteAPI = {
   toggle: (userId, bookId) => api.post('/favorites/toggle', { userId, bookId })
 }
 
+export const reviewAPI = {
+  query: (params) => api.post('/reviews/query', params),
+  create: (data) => api.post('/reviews', data),
+  getById: (id) => api.get(`/reviews/${id}`),
+  getByBook: (bookId) => api.get(`/reviews/book/${bookId}`),
+  getBookStats: (bookId) => api.get(`/reviews/book/${bookId}/stats`),
+  getByUser: (userId) => api.get(`/reviews/user/${userId}`),
+  getByBorrowRecord: (borrowRecordId) => api.get(`/reviews/borrow-record/${borrowRecordId}`),
+  hasReviewedBorrowRecord: (borrowRecordId) => api.get(`/reviews/borrow-record/${borrowRecordId}/exists`)
+}
+
 export default api

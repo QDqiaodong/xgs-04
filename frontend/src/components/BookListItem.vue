@@ -29,6 +29,21 @@
         </div>
       </div>
       <div class="book-meta">
+        <span class="meta-item rating-meta">
+          <template v-if="book.reviewCount > 0">
+            <el-rate
+              :model-value="book.averageRating"
+              disabled
+              show-score
+              text-color="#ff9900"
+              score-template="{value}"
+              :max="5"
+              size="small"
+            />
+            <span class="review-count-inline">({{ book.reviewCount }}条)</span>
+          </template>
+          <span v-else class="no-rating-inline">暂无评分</span>
+        </span>
         <span class="meta-item">
           <strong>作者：</strong>{{ book.author }}
         </span>
@@ -248,6 +263,22 @@ watch(() => props.book?.id, () => {
   font-size: 13px;
   color: #606266;
   white-space: nowrap;
+}
+
+.rating-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.review-count-inline {
+  color: #909399;
+  font-size: 12px;
+}
+
+.no-rating-inline {
+  color: #c0c4cc;
+  font-size: 12px;
 }
 
 .book-description {
