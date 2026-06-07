@@ -30,6 +30,11 @@ const routes = [
     path: '/borrow-history',
     name: 'BorrowHistory',
     component: () => import('@/views/BorrowHistory.vue')
+  },
+  {
+    path: '/borrow-approval',
+    name: 'BorrowApproval',
+    component: () => import('@/views/BorrowApproval.vue')
   }
 ]
 

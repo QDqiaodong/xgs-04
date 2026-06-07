@@ -21,6 +21,17 @@
               我的收藏
             </el-badge>
           </el-menu-item>
+          <el-menu-item index="/borrow-approval">
+            <el-badge
+              :value="pendingApprovalCount > 0 ? pendingApprovalCount : undefined"
+              :max="99"
+              :hidden="pendingApprovalCount === 0"
+              type="danger"
+              class="approval-badge"
+            >
+              借阅审批
+            </el-badge>
+          </el-menu-item>
           <el-menu-item index="/borrow-apply">借阅申请</el-menu-item>
           <el-menu-item index="/borrow-history">借阅记录</el-menu-item>
         </el-menu>
@@ -36,20 +47,35 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { loadFavorites, getFavoriteCount, ensureFavoriteCount } from '@/store/favorites'
+import { borrowRecordAPI } from '@/api'
 
 const route = useRoute()
 const activeMenu = computed(() => route.path)
 
 const favoriteCount = computed(() => getFavoriteCount())
+const pendingApprovalCount = ref(0)
+
+const loadPendingApprovalCount = async () => {
+  try {
+    const currentUserId = 1
+    const res = await borrowRecordAPI.getByOwner(currentUserId)
+    if (res.code === 200) {
+      pendingApprovalCount.value = res.data.filter(r => r.status === 'PENDING').length
+    }
+  } catch (e) {
+    console.error('加载待审批数量失败', e)
+  }
+}
 
 onMounted(async () => {
   const success = await loadFavorites()
   if (!success) {
     ensureFavoriteCount()
   }
+  loadPendingApprovalCount()
 })
 </script>
 
@@ -92,6 +118,10 @@ onMounted(async () => {
 }
 
 .favorite-badge :deep(.el-badge__content) {
+  border: none;
+}
+
+.approval-badge :deep(.el-badge__content) {
   border: none;
 }
 
