@@ -56,6 +56,7 @@
     <el-empty v-if="bookList.length === 0" description="暂无藏书，快去添加吧" />
 
     <BookForm
+      ref="bookFormRef"
       v-model="formDialogVisible"
       :book="editingBook"
       :owner-id="currentUserId"
@@ -81,6 +82,7 @@ const bookList = ref([])
 const showAddDialog = ref(false)
 const formDialogVisible = ref(false)
 const editingBook = ref(null)
+const bookFormRef = ref(null)
 
 const loadBooks = async () => {
   try {
@@ -124,6 +126,9 @@ const handleSubmit = async (data) => {
     }
     if (res.code === 200) {
       ElMessage.success(editingBook.value ? '更新成功' : '添加成功')
+      bookFormRef.value?.clearDraft()
+      formDialogVisible.value = false
+      editingBook.value = null
       loadBooks()
     } else {
       ElMessage.error(res.message || '操作失败')

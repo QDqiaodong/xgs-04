@@ -69,8 +69,11 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { cityAPI, categoryAPI } from '@/api'
+import { getDraft, removeDraft, hasDraft } from '@/utils/draftStorage'
+import { useAutoSaveDraft } from '@/composables/useAutoSaveDraft'
 
 const props = defineProps({
   modelValue: {
@@ -114,6 +117,55 @@ const rules = {
 
 const isEdit = ref(false)
 
+const currentBookId = computed(() => (isEdit.value && props.book ? props.book.id : null))
+const ownerIdRef = computed(() => props.ownerId)
+
+const onDraftSaveSuccess = () => {
+  ElMessage({
+    message: '草稿已自动保存',
+    type: 'success',
+    duration: 1500,
+    showClose: false
+  })
+}
+
+const { startTimer, stopTimer, forceSave } = useAutoSaveDraft(
+  form,
+  ownerIdRef,
+  currentBookId,
+  {
+    interval: 30000,
+    onSaveSuccess: onDraftSaveSuccess
+  }
+)
+
+const clearCurrentDraft = () => {
+  removeDraft(props.ownerId, currentBookId.value)
+}
+
+const checkAndRestoreDraft = async () => {
+  const bookId = currentBookId.value
+  if (!hasDraft(props.ownerId, bookId)) return
+
+  try {
+    await ElMessageBox.confirm(
+      '检测到未提交的草稿，是否恢复？',
+      '提示',
+      {
+        confirmButtonText: '恢复',
+        cancelButtonText: '丢弃',
+        type: 'info'
+      }
+    )
+    const draft = getDraft(props.ownerId, bookId)
+    if (draft && draft.data) {
+      form.value = { ...form.value, ...draft.data }
+    }
+  } catch {
+    removeDraft(props.ownerId, bookId)
+  }
+}
+
 const loadCities = async () => {
   const res = await cityAPI.getAll()
   if (res.code === 200) {
@@ -143,7 +195,7 @@ const resetForm = () => {
   formRef.value?.resetFields()
 }
 
-watch(() => props.modelValue, (val) => {
+watch(() => props.modelValue, async (val) => {
   visible.value = val
   if (val) {
     if (props.book) {
@@ -161,22 +213,34 @@ watch(() => props.modelValue, (val) => {
     } else {
       resetForm()
     }
+    await nextTick()
+    await checkAndRestoreDraft()
+    startTimer()
+  } else {
+    stopTimer()
+    forceSave()
   }
 })
 
 const handleClose = () => {
+  stopTimer()
+  forceSave()
   emit('update:modelValue', false)
   resetForm()
 }
 
 const handleSubmit = async () => {
   await formRef.value?.validate()
+  stopTimer()
   emit('submit', {
     ...form.value,
     ownerId: props.ownerId
   })
-  handleClose()
 }
+
+defineExpose({
+  clearDraft: clearCurrentDraft
+})
 
 onMounted(() => {
   loadCities()
