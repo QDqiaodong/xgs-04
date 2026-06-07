@@ -1,6 +1,9 @@
 import { ref, watch, onUnmounted } from 'vue'
 import { saveDraft } from '@/utils/draftStorage'
 
+const deepClone = (obj) => JSON.parse(JSON.stringify(obj))
+const isEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+
 export const useAutoSaveDraft = (formRef, ownerId, bookIdRef, options = {}) => {
   const {
     interval = 30000,
@@ -9,16 +12,25 @@ export const useAutoSaveDraft = (formRef, ownerId, bookIdRef, options = {}) => {
   } = options
 
   const lastSavedAt = ref(null)
-  const isDirty = ref(false)
+  const baseline = ref(null)
   let timerId = null
 
+  const isDirty = () => {
+    if (!baseline.value || !formRef.value) return false
+    return !isEqual(baseline.value, formRef.value)
+  }
+
+  const resetBaseline = () => {
+    baseline.value = formRef.value ? deepClone(formRef.value) : null
+  }
+
   const performSave = () => {
-    if (!isDirty.value || !formRef.value) return
+    if (!isDirty() || !formRef.value) return
     const bookId = bookIdRef.value
     const success = saveDraft(ownerId.value, bookId, formRef.value)
     if (success) {
       lastSavedAt.value = Date.now()
-      isDirty.value = false
+      resetBaseline()
       onSaveSuccess && onSaveSuccess()
     } else {
       onSaveError && onSaveError()
@@ -37,16 +49,14 @@ export const useAutoSaveDraft = (formRef, ownerId, bookIdRef, options = {}) => {
     }
   }
 
-  const markDirty = () => {
-    isDirty.value = true
-  }
-
   const forceSave = () => {
     performSave()
   }
 
   watch(formRef, () => {
-    markDirty()
+    if (!baseline.value) {
+      resetBaseline()
+    }
   }, { deep: true })
 
   onUnmounted(() => {
@@ -59,7 +69,7 @@ export const useAutoSaveDraft = (formRef, ownerId, bookIdRef, options = {}) => {
     isDirty,
     startTimer,
     stopTimer,
-    markDirty,
+    resetBaseline,
     forceSave
   }
 }

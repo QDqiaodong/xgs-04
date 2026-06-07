@@ -13,7 +13,7 @@
             <span class="view-switch-label">列表</span>
           </el-radio-button>
         </el-radio-group>
-        <el-button type="primary" @click="showAddDialog = true">
+        <el-button type="primary" @click="handleAdd">
           <el-icon><Plus /></el-icon>
           添加图书
         </el-button>
@@ -79,10 +79,14 @@ const viewModeStore = useMyBooksViewMode()
 
 const currentUserId = 1
 const bookList = ref([])
-const showAddDialog = ref(false)
 const formDialogVisible = ref(false)
 const editingBook = ref(null)
 const bookFormRef = ref(null)
+
+const handleAdd = () => {
+  editingBook.value = null
+  formDialogVisible.value = true
+}
 
 const loadBooks = async () => {
   try {

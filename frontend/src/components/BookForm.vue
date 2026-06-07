@@ -129,7 +129,7 @@ const onDraftSaveSuccess = () => {
   })
 }
 
-const { startTimer, stopTimer, forceSave } = useAutoSaveDraft(
+const { startTimer, stopTimer, forceSave, resetBaseline } = useAutoSaveDraft(
   form,
   ownerIdRef,
   currentBookId,
@@ -214,7 +214,9 @@ watch(() => props.modelValue, async (val) => {
       resetForm()
     }
     await nextTick()
+    resetBaseline()
     await checkAndRestoreDraft()
+    resetBaseline()
     startTimer()
   } else {
     stopTimer()
