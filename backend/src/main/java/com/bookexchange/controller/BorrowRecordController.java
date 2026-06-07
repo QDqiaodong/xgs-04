@@ -1,10 +1,13 @@
 package com.bookexchange.controller;
 
 import com.bookexchange.dto.BorrowRecordDTO;
+import com.bookexchange.dto.BorrowRecordQueryDTO;
+import com.bookexchange.dto.PageResult;
 import com.bookexchange.dto.Result;
 import com.bookexchange.entity.BorrowRecord;
 import com.bookexchange.service.BorrowRecordService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,6 +18,12 @@ import java.util.List;
 public class BorrowRecordController {
 
     private final BorrowRecordService borrowRecordService;
+
+    @PostMapping("/query")
+    public Result<PageResult<BorrowRecord>> queryBorrowRecords(@RequestBody BorrowRecordQueryDTO queryDTO) {
+        Page<BorrowRecord> page = borrowRecordService.queryBorrowRecords(queryDTO);
+        return Result.success(new PageResult<>(page.getContent(), page.getTotalElements()));
+    }
 
     @GetMapping("/borrower/{borrowerId}")
     public Result<List<BorrowRecord>> getBorrowRecordsByBorrowerId(@PathVariable Long borrowerId) {

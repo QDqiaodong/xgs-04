@@ -39,6 +39,7 @@ export const bookAPI = {
 }
 
 export const borrowRecordAPI = {
+  query: (params) => api.post('/borrow-records/query', params),
   getByBorrower: (borrowerId) => api.get(`/borrow-records/borrower/${borrowerId}`),
   getByOwner: (ownerId) => api.get(`/borrow-records/owner/${ownerId}`),
   getById: (id) => api.get(`/borrow-records/${id}`),

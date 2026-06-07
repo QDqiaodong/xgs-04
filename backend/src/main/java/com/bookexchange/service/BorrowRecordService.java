@@ -1,17 +1,28 @@
 package com.bookexchange.service;
 
 import com.bookexchange.dto.BorrowRecordDTO;
+import com.bookexchange.dto.BorrowRecordQueryDTO;
 import com.bookexchange.entity.Book;
 import com.bookexchange.entity.BorrowRecord;
 import com.bookexchange.entity.User;
 import com.bookexchange.repository.BookRepository;
 import com.bookexchange.repository.BorrowRecordRepository;
 import com.bookexchange.repository.UserRepository;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -38,6 +49,75 @@ public class BorrowRecordService {
 
     public BorrowRecord getBorrowRecordById(Long id) {
         return borrowRecordRepository.findById(id).orElse(null);
+    }
+
+    public Page<BorrowRecord> queryBorrowRecords(BorrowRecordQueryDTO queryDTO) {
+        Pageable pageable = PageRequest.of(
+            queryDTO.getPageNum() - 1,
+            queryDTO.getPageSize(),
+            Sort.by(Sort.Direction.DESC, "createTime")
+        );
+
+        Specification<BorrowRecord> spec = buildSpecification(queryDTO);
+        return borrowRecordRepository.findAll(spec, pageable);
+    }
+
+    private Specification<BorrowRecord> buildSpecification(BorrowRecordQueryDTO queryDTO) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (queryDTO.getCurrentUserId() != null) {
+                predicates.add(cb.or(
+                    cb.equal(root.get("borrower").get("id"), queryDTO.getCurrentUserId()),
+                    cb.equal(root.get("owner").get("id"), queryDTO.getCurrentUserId())
+                ));
+            }
+
+            if (queryDTO.getStatuses() != null && !queryDTO.getStatuses().isEmpty()) {
+                predicates.add(root.get("status").in(queryDTO.getStatuses()));
+            }
+
+            if (queryDTO.getStartDateFrom() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("startDate"), queryDTO.getStartDateFrom()));
+            }
+
+            if (queryDTO.getStartDateTo() != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("startDate"), queryDTO.getStartDateTo()));
+            }
+
+            if (queryDTO.getCategoryId() != null) {
+                Join<BorrowRecord, Book> bookJoin = root.join("book", JoinType.INNER);
+                predicates.add(cb.equal(bookJoin.get("category").get("id"), queryDTO.getCategoryId()));
+            }
+
+            if (queryDTO.getBorrowerId() != null) {
+                predicates.add(cb.equal(root.get("borrower").get("id"), queryDTO.getBorrowerId()));
+            }
+
+            if (queryDTO.getOwnerId() != null) {
+                predicates.add(cb.equal(root.get("owner").get("id"), queryDTO.getOwnerId()));
+            }
+
+            if (StringUtils.hasText(queryDTO.getBorrowerKeyword())) {
+                Join<BorrowRecord, User> borrowerJoin = root.join("borrower", JoinType.INNER);
+                String keyword = "%" + queryDTO.getBorrowerKeyword().trim() + "%";
+                predicates.add(cb.or(
+                    cb.like(borrowerJoin.get("nickname"), keyword),
+                    cb.like(borrowerJoin.get("username"), keyword)
+                ));
+            }
+
+            if (StringUtils.hasText(queryDTO.getOwnerKeyword())) {
+                Join<BorrowRecord, User> ownerJoin = root.join("owner", JoinType.INNER);
+                String keyword = "%" + queryDTO.getOwnerKeyword().trim() + "%";
+                predicates.add(cb.or(
+                    cb.like(ownerJoin.get("nickname"), keyword),
+                    cb.like(ownerJoin.get("username"), keyword)
+                ));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     public BorrowRecord createBorrowRecord(BorrowRecordDTO dto) {
