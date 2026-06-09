@@ -29,6 +29,17 @@
             <el-tag :type="book.available ? 'success' : 'info'" size="large">
               {{ book.available ? '可借' : '已借出' }}
             </el-tag>
+            <div v-if="book.tags && book.tags.length > 0" class="book-detail-tags">
+              <el-tag
+                v-for="tag in book.tags"
+                :key="tag.id"
+                size="large"
+                :style="tag.color ? { borderColor: tag.color, color: tag.color, backgroundColor: tag.color + '15' } : {}"
+                effect="light"
+              >
+                {{ tag.name }}
+              </el-tag>
+            </div>
             <div class="rating-summary" v-if="book.reviewCount > 0">
               <el-rate
                 :model-value="book.averageRating"
@@ -435,6 +446,12 @@ watch(() => route.params.id, () => {
   align-items: center;
   gap: 16px;
   margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.book-detail-tags {
+  display: flex;
+  gap: 8px;
   flex-wrap: wrap;
 }
 

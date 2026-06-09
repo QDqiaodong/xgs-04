@@ -22,6 +22,15 @@ export const categoryAPI = {
   getAll: () => api.get('/categories')
 }
 
+export const tagAPI = {
+  getAll: () => api.get('/tags'),
+  getById: (id) => api.get(`/tags/${id}`),
+  getByName: (name) => api.get(`/tags/name/${name}`),
+  create: (data) => api.post('/tags', data),
+  update: (id, data) => api.put(`/tags/${id}`, data),
+  delete: (id) => api.delete(`/tags/${id}`)
+}
+
 export const userAPI = {
   getAll: () => api.get('/users'),
   getById: (id) => api.get(`/users/${id}`),
@@ -35,7 +44,9 @@ export const bookAPI = {
   getByOwner: (ownerId) => api.get(`/books/owner/${ownerId}`),
   create: (data) => api.post('/books', data),
   update: (id, data) => api.put(`/books/${id}`, data),
-  delete: (id) => api.delete(`/books/${id}`)
+  delete: (id) => api.delete(`/books/${id}`),
+  addTags: (bookIds, tagIds) => api.post('/books/tags/add', { bookIds, tagIds }),
+  removeTags: (bookIds, tagIds) => api.post('/books/tags/remove', { bookIds, tagIds })
 }
 
 export const borrowRecordAPI = {

@@ -2,6 +2,7 @@ package com.bookexchange.controller;
 
 import com.bookexchange.dto.BookDTO;
 import com.bookexchange.dto.BookQueryDTO;
+import com.bookexchange.dto.BookTagDTO;
 import com.bookexchange.dto.Result;
 import com.bookexchange.entity.Book;
 import com.bookexchange.service.BookService;
@@ -60,6 +61,18 @@ public class BookController {
     public Result<Void> deleteBook(@PathVariable Long id) {
         bookService.deleteBook(id);
         return Result.success();
+    }
+
+    @PostMapping("/tags/add")
+    public Result<Void> addTagsToBooks(@RequestBody BookTagDTO bookTagDTO) {
+        boolean success = bookService.addTagsToBooks(bookTagDTO.getBookIds(), bookTagDTO.getTagIds());
+        return success ? Result.success() : Result.error("批量打标失败");
+    }
+
+    @PostMapping("/tags/remove")
+    public Result<Void> removeTagsFromBooks(@RequestBody BookTagDTO bookTagDTO) {
+        boolean success = bookService.removeTagsFromBooks(bookTagDTO.getBookIds(), bookTagDTO.getTagIds());
+        return success ? Result.success() : Result.error("批量取消标签失败");
     }
 
     private void enrichBookWithReviewStats(Book book) {

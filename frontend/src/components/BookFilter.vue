@@ -33,6 +33,31 @@
           />
         </el-select>
       </el-form-item>
+      <el-form-item label="标签">
+        <el-select
+          v-model="filterForm.tagIds"
+          placeholder="选择标签"
+          multiple
+          clearable
+          style="width: 240px"
+          @change="handleFilterChange"
+        >
+          <el-option
+            v-for="tag in tags"
+            :key="tag.id"
+            :label="tag.name"
+            :value="tag.id"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="匹配方式">
+        <el-switch
+          v-model="filterForm.matchAllTags"
+          active-text="全部匹配"
+          inactive-text="任一匹配"
+          @change="handleFilterChange"
+        />
+      </el-form-item>
       <el-form-item label="可出借">
         <el-switch
           v-model="filterForm.available"
@@ -54,7 +79,7 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { cityAPI, categoryAPI } from '@/api'
+import { cityAPI, categoryAPI, tagAPI } from '@/api'
 
 const props = defineProps({
   modelValue: {
@@ -71,9 +96,12 @@ const emit = defineEmits(['update:modelValue', 'filter-change'])
 
 const cities = ref([])
 const categories = ref([])
+const tags = ref([])
 const filterForm = ref({
   cityId: null,
   categoryId: null,
+  tagIds: [],
+  matchAllTags: false,
   available: true,
   keyword: ''
 })
@@ -89,6 +117,13 @@ const loadCategories = async () => {
   const res = await categoryAPI.getAll()
   if (res.code === 200) {
     categories.value = res.data
+  }
+}
+
+const loadTags = async () => {
+  const res = await tagAPI.getAll()
+  if (res.code === 200) {
+    tags.value = res.data
   }
 }
 
@@ -123,6 +158,7 @@ watch(() => props.modelValue, (newVal) => {
 onMounted(() => {
   loadCities()
   loadCategories()
+  loadTags()
   loadCachedFilter()
   setTimeout(() => handleFilterChange(), 100)
 })

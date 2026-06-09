@@ -7,6 +7,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Entity
@@ -64,4 +65,7 @@ public class Book implements Serializable {
 
     @Transient
     private Integer reviewCount;
+
+    @Transient
+    private List<Tag> tags;
 }

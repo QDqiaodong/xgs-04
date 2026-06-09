@@ -2,6 +2,8 @@ package com.bookexchange.dto;
 
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class BookDTO {
 
@@ -14,4 +16,5 @@ public class BookDTO {
     private Boolean canBorrow;
     private Long ownerId;
     private Long cityId;
+    private List<Long> tagIds;
 }

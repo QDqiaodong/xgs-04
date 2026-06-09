@@ -49,6 +49,16 @@
           />
         </el-select>
       </el-form-item>
+      <el-form-item label="标签">
+        <el-select v-model="form.tagIds" placeholder="请选择标签" multiple style="width: 100%">
+          <el-option
+            v-for="tag in tags"
+            :key="tag.id"
+            :label="tag.name"
+            :value="tag.id"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item label="可出借">
         <el-switch v-model="form.canBorrow" />
       </el-form-item>
@@ -71,7 +81,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { cityAPI, categoryAPI } from '@/api'
+import { cityAPI, categoryAPI, tagAPI } from '@/api'
 import { getDraft, removeDraft, hasDraft } from '@/utils/draftStorage'
 import { useAutoSaveDraft } from '@/composables/useAutoSaveDraft'
 
@@ -96,6 +106,7 @@ const visible = ref(false)
 const formRef = ref(null)
 const cities = ref([])
 const categories = ref([])
+const tags = ref([])
 
 const form = ref({
   title: '',
@@ -105,7 +116,8 @@ const form = ref({
   conditionLevel: '',
   cityId: null,
   canBorrow: true,
-  description: ''
+  description: '',
+  tagIds: []
 })
 
 const rules = {
@@ -180,6 +192,13 @@ const loadCategories = async () => {
   }
 }
 
+const loadTags = async () => {
+  const res = await tagAPI.getAll()
+  if (res.code === 200) {
+    tags.value = res.data
+  }
+}
+
 const resetForm = () => {
   form.value = {
     title: '',
@@ -189,7 +208,8 @@ const resetForm = () => {
     conditionLevel: '',
     cityId: null,
     canBorrow: true,
-    description: ''
+    description: '',
+    tagIds: []
   }
   isEdit.value = false
   formRef.value?.resetFields()
@@ -208,7 +228,8 @@ watch(() => props.modelValue, async (val) => {
         conditionLevel: props.book.conditionLevel || '',
         cityId: props.book.city?.id,
         canBorrow: props.book.canBorrow,
-        description: props.book.description || ''
+        description: props.book.description || '',
+        tagIds: props.book.tags?.map(t => t.id) || []
       }
     } else {
       resetForm()
@@ -247,5 +268,6 @@ defineExpose({
 onMounted(() => {
   loadCities()
   loadCategories()
+  loadTags()
 })
 </script>

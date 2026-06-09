@@ -45,6 +45,17 @@
       <p><strong>成色：</strong>{{ book.conditionLevel || '未填写' }}</p>
       <p><strong>城市：</strong>{{ book.city?.cityName }}</p>
       <p><strong>所有者：</strong>{{ book.owner?.nickname }}</p>
+      <div v-if="book.tags && book.tags.length > 0" class="card-book-tags">
+        <el-tag
+          v-for="tag in book.tags"
+          :key="tag.id"
+          size="small"
+          :style="tag.color ? { borderColor: tag.color, color: tag.color } : {}"
+          effect="light"
+        >
+          {{ tag.name }}
+        </el-tag>
+      </div>
       <p v-if="book.description" class="description">
         <strong>简介：</strong>{{ book.description }}
       </p>
@@ -225,6 +236,13 @@ watch(() => props.book?.id, () => {
   margin: 8px 0;
   color: #606266;
   font-size: 14px;
+}
+
+.card-book-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
 }
 
 .description {

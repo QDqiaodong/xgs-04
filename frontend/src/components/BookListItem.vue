@@ -60,6 +60,17 @@
           <strong>所有者：</strong>{{ book.owner?.nickname }}
         </span>
       </div>
+      <div v-if="book.tags && book.tags.length > 0" class="book-tags">
+        <el-tag
+          v-for="tag in book.tags"
+          :key="tag.id"
+          size="small"
+          :style="tag.color ? { borderColor: tag.color, color: tag.color } : {}"
+          effect="light"
+        >
+          {{ tag.name }}
+        </el-tag>
+      </div>
       <p v-if="book.description" class="book-description">
         {{ book.description }}
       </p>
@@ -290,6 +301,13 @@ watch(() => props.book?.id, () => {
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
+}
+
+.book-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .list-actions {

@@ -3,12 +3,16 @@ package com.bookexchange.service;
 import com.bookexchange.dto.BookDTO;
 import com.bookexchange.dto.BookQueryDTO;
 import com.bookexchange.entity.Book;
+import com.bookexchange.entity.BookTag;
 import com.bookexchange.entity.Category;
 import com.bookexchange.entity.City;
+import com.bookexchange.entity.Tag;
 import com.bookexchange.entity.User;
 import com.bookexchange.repository.BookRepository;
+import com.bookexchange.repository.BookTagRepository;
 import com.bookexchange.repository.CategoryRepository;
 import com.bookexchange.repository.CityRepository;
+import com.bookexchange.repository.TagRepository;
 import com.bookexchange.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -21,10 +25,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +42,8 @@ public class BookService {
     private final CategoryRepository categoryRepository;
     private final CityRepository cityRepository;
     private final UserRepository userRepository;
+    private final TagRepository tagRepository;
+    private final BookTagRepository bookTagRepository;
     private final RedisTemplate<String, Object> redisTemplate;
 
     private static final String BORROWED_BOOK_KEY = "borrowed:book:";
@@ -47,8 +55,28 @@ public class BookService {
             Sort.by(Sort.Direction.DESC, "createTime")
         );
 
+        List<Long> filteredBookIds = null;
+        if (queryDTO.getTagIds() != null && !queryDTO.getTagIds().isEmpty()) {
+            if (Boolean.TRUE.equals(queryDTO.getMatchAllTags())) {
+                filteredBookIds = bookTagRepository.findBookIdsByAllTagIds(
+                    queryDTO.getTagIds(), (long) queryDTO.getTagIds().size()
+                );
+            } else {
+                filteredBookIds = bookTagRepository.findBookIdsByTagIds(queryDTO.getTagIds());
+            }
+            if (filteredBookIds.isEmpty()) {
+                return Page.empty(pageable);
+            }
+        }
+
+        final List<Long> tagFilteredBookIds = filteredBookIds;
+
         Specification<Book> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+
+            if (tagFilteredBookIds != null) {
+                predicates.add(root.get("id").in(tagFilteredBookIds));
+            }
 
             if (queryDTO.getCityId() != null) {
                 predicates.add(cb.equal(root.get("city").get("id"), queryDTO.getCityId()));
@@ -72,22 +100,28 @@ public class BookService {
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
-        return bookRepository.findAll(spec, pageable);
+        Page<Book> page = bookRepository.findAll(spec, pageable);
+        page.getContent().forEach(this::enrichBookWithTags);
+        return page;
     }
 
     public Book getBookById(Long id) {
         String key = BORROWED_BOOK_KEY + id;
         Book cachedBook = safeReadBook(key);
         if (cachedBook != null) {
+            enrichBookWithTags(cachedBook);
             return cachedBook;
         }
 
         Book book = bookRepository.findById(id).orElse(null);
-        if (book != null && !book.getAvailable()) {
-            try {
-                redisTemplate.opsForValue().set(key, book, 1, TimeUnit.HOURS);
-            } catch (Exception e) {
-                log.warn("Failed to cache book {}: {}", id, e.getMessage());
+        if (book != null) {
+            enrichBookWithTags(book);
+            if (!book.getAvailable()) {
+                try {
+                    redisTemplate.opsForValue().set(key, book, 1, TimeUnit.HOURS);
+                } catch (Exception e) {
+                    log.warn("Failed to cache book {}: {}", id, e.getMessage());
+                }
             }
         }
         return book;
@@ -113,10 +147,23 @@ public class BookService {
         return null;
     }
 
-    public List<Book> getBooksByOwnerId(Long ownerId) {
-        return bookRepository.findByOwnerId(ownerId);
+    private void enrichBookWithTags(Book book) {
+        if (book != null && book.getTags() == null) {
+            List<BookTag> bookTags = bookTagRepository.findByBookIdWithTag(book.getId());
+            List<Tag> tags = bookTags.stream()
+                .map(BookTag::getTag)
+                .collect(Collectors.toList());
+            book.setTags(tags);
+        }
     }
 
+    public List<Book> getBooksByOwnerId(Long ownerId) {
+        List<Book> books = bookRepository.findByOwnerId(ownerId);
+        books.forEach(this::enrichBookWithTags);
+        return books;
+    }
+
+    @Transactional
     public Book createBook(BookDTO bookDTO) {
         Category category = categoryRepository.findById(bookDTO.getCategoryId()).orElse(null);
         City city = cityRepository.findById(bookDTO.getCityId()).orElse(null);
@@ -138,9 +185,17 @@ public class BookService {
         book.setOwner(owner);
         book.setCity(city);
 
-        return bookRepository.save(book);
+        Book savedBook = bookRepository.save(book);
+
+        if (bookDTO.getTagIds() != null && !bookDTO.getTagIds().isEmpty()) {
+            saveBookTags(savedBook, bookDTO.getTagIds());
+            enrichBookWithTags(savedBook);
+        }
+
+        return savedBook;
     }
 
+    @Transactional
     public Book updateBook(Long id, BookDTO bookDTO) {
         Book book = bookRepository.findById(id).orElse(null);
         if (book == null) {
@@ -172,7 +227,64 @@ public class BookService {
             book.setCanBorrow(bookDTO.getCanBorrow());
         }
 
-        return bookRepository.save(book);
+        if (bookDTO.getTagIds() != null) {
+            bookTagRepository.deleteByBookId(id);
+            if (!bookDTO.getTagIds().isEmpty()) {
+                saveBookTags(book, bookDTO.getTagIds());
+            }
+        }
+
+        Book savedBook = bookRepository.save(book);
+        enrichBookWithTags(savedBook);
+        return savedBook;
+    }
+
+    private void saveBookTags(Book book, List<Long> tagIds) {
+        List<Tag> tags = tagRepository.findAllById(tagIds);
+        for (Tag tag : tags) {
+            BookTag bookTag = new BookTag();
+            bookTag.setBook(book);
+            bookTag.setTag(tag);
+            bookTagRepository.save(bookTag);
+        }
+    }
+
+    @Transactional
+    public boolean addTagsToBooks(List<Long> bookIds, List<Long> tagIds) {
+        if (bookIds == null || bookIds.isEmpty() || tagIds == null || tagIds.isEmpty()) {
+            return false;
+        }
+        List<Book> books = bookRepository.findAllById(bookIds);
+        List<Tag> tags = tagRepository.findAllById(tagIds);
+        if (books.isEmpty() || tags.isEmpty()) {
+            return false;
+        }
+        for (Book book : books) {
+            List<BookTag> existingBookTags = bookTagRepository.findByBookId(book.getId());
+            List<Long> existingTagIds = existingBookTags.stream()
+                .map(bt -> bt.getTag().getId())
+                .collect(Collectors.toList());
+            for (Tag tag : tags) {
+                if (!existingTagIds.contains(tag.getId())) {
+                    BookTag bookTag = new BookTag();
+                    bookTag.setBook(book);
+                    bookTag.setTag(tag);
+                    bookTagRepository.save(bookTag);
+                }
+            }
+        }
+        return true;
+    }
+
+    @Transactional
+    public boolean removeTagsFromBooks(List<Long> bookIds, List<Long> tagIds) {
+        if (bookIds == null || bookIds.isEmpty() || tagIds == null || tagIds.isEmpty()) {
+            return false;
+        }
+        for (Long bookId : bookIds) {
+            bookTagRepository.deleteByBookIdAndTagIds(bookId, tagIds);
+        }
+        return true;
     }
 
     public void updateBookAvailability(Long bookId, boolean available) {
@@ -194,7 +306,9 @@ public class BookService {
         }
     }
 
+    @Transactional
     public void deleteBook(Long id) {
+        bookTagRepository.deleteByBookId(id);
         bookRepository.deleteById(id);
         try {
             redisTemplate.delete(BORROWED_BOOK_KEY + id);
