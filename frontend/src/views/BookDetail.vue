@@ -216,7 +216,6 @@ const loading = ref(false)
 const borrowDialogVisible = ref(false)
 const borrowSubmitting = ref(false)
 const checkingFavorite = ref(false)
-const localFavorited = ref(null)
 
 const reviewList = ref([])
 const reviewsLoading = ref(false)
@@ -242,20 +241,17 @@ const isOwner = computed(() => {
 })
 
 const favorited = computed(() => {
-  if (localFavorited.value !== null) {
-    return localFavorited.value
-  }
+  favoriteStore.updateVersion
   return book.value ? isFavorited(book.value.id) : false
 })
 
 const lazyCheckFavorite = async () => {
   if (!book.value) return
   if (favoriteStore.listLoaded) return
-  if (favoriteStore.perBookStatus.has(book.value.id)) return
+  if (book.value.id in favoriteStore.perBookStatus) return
   checkingFavorite.value = true
   try {
-    const result = await checkFavorite(book.value.id, currentUserId)
-    localFavorited.value = result
+    await checkFavorite(book.value.id, currentUserId)
   } finally {
     checkingFavorite.value = false
   }
@@ -268,7 +264,6 @@ const loadBook = async () => {
     const res = await bookAPI.getById(bookId)
     if (res.code === 200) {
       book.value = res.data
-      localFavorited.value = null
       lazyCheckFavorite()
       checkReviewEligibility()
     } else {
@@ -364,10 +359,7 @@ const submitReview = async () => {
 
 const handleToggleFavorite = async () => {
   if (book.value) {
-    const result = await toggleFavorite(book.value.id, currentUserId)
-    if (result !== null) {
-      localFavorited.value = result
-    }
+    await toggleFavorite(book.value.id, currentUserId)
   }
 }
 

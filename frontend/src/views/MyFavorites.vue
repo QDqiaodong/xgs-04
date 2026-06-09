@@ -90,14 +90,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { cityAPI, categoryAPI, favoriteAPI } from '@/api'
-import { loadFavorites, refreshFavorites, getFavoriteCount } from '@/store/favorites'
+import { loadFavorites, refreshFavorites, getFavoriteCount, favoriteStore } from '@/store/favorites'
 import BookCard from '@/components/BookCard.vue'
 
 const router = useRouter()
+const route = useRoute()
 const currentUserId = 1
 
 const favoriteBooks = ref([])
@@ -110,7 +111,10 @@ const filterForm = ref({
   keyword: ''
 })
 
-const favoriteCount = computed(() => getFavoriteCount())
+const favoriteCount = computed(() => {
+  favoriteStore.updateVersion
+  return getFavoriteCount()
+})
 
 const filteredBooks = computed(() => {
   let result = favoriteBooks.value
@@ -184,6 +188,18 @@ const goToSquare = () => {
 onMounted(async () => {
   await Promise.all([loadCities(), loadCategories()])
   loadFavoriteBooks()
+})
+
+watch(() => favoriteStore.updateVersion, (newVal, oldVal) => {
+  if (oldVal !== undefined && newVal !== oldVal) {
+    loadFavoriteBooks()
+  }
+})
+
+watch(() => route.fullPath, () => {
+  if (route.path === '/my-favorites') {
+    loadFavoriteBooks()
+  }
 })
 </script>
 

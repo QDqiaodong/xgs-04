@@ -5,13 +5,18 @@ import { ElMessage } from 'element-plus'
 const DEFAULT_USER_ID = 1
 
 export const favoriteStore = reactive({
-  favoriteBookIds: new Set(),
-  perBookStatus: new Map(),
+  favoriteBookIds: {},
+  perBookStatus: {},
   favoriteCount: 0,
   listLoaded: false,
   listLoadFailed: false,
-  loading: false
+  loading: false,
+  updateVersion: 0
 })
+
+function bumpVersion() {
+  favoriteStore.updateVersion++
+}
 
 const loadingPromise = ref(null)
 
@@ -33,13 +38,16 @@ export async function loadFavorites(userId = DEFAULT_USER_ID, force = false) {
         favoriteAPI.getCount(userId)
       ])
 
-      const idSet = new Set()
+      const idObj = {}
+      const perBookObj = {}
       if (booksRes.code === 200) {
-        booksRes.data.forEach(b => idSet.add(b.id))
+        booksRes.data.forEach(b => {
+          idObj[b.id] = true
+          perBookObj[b.id] = true
+        })
       }
-      favoriteStore.favoriteBookIds = idSet
-      favoriteStore.perBookStatus = new Map()
-      idSet.forEach(id => favoriteStore.perBookStatus.set(id, true))
+      favoriteStore.favoriteBookIds = idObj
+      favoriteStore.perBookStatus = perBookObj
 
       if (countRes.code === 200) {
         favoriteStore.favoriteCount = countRes.data.count
@@ -47,6 +55,7 @@ export async function loadFavorites(userId = DEFAULT_USER_ID, force = false) {
 
       favoriteStore.listLoaded = true
       favoriteStore.listLoadFailed = false
+      bumpVersion()
       return true
     } catch (e) {
       console.error('加载收藏列表失败，降级为单本查询模式:', e)
@@ -60,6 +69,7 @@ export async function loadFavorites(userId = DEFAULT_USER_ID, force = false) {
       } catch (e2) {
         console.error('加载收藏数量也失败:', e2)
       }
+      bumpVersion()
       return false
     } finally {
       favoriteStore.loading = false
@@ -77,6 +87,7 @@ export async function ensureFavoriteCount(userId = DEFAULT_USER_ID, force = fals
     const res = await favoriteAPI.getCount(userId)
     if (res.code === 200) {
       favoriteStore.favoriteCount = res.data.count
+      bumpVersion()
     }
   } catch (e) {
     console.error('获取收藏数量失败:', e)
@@ -86,20 +97,21 @@ export async function ensureFavoriteCount(userId = DEFAULT_USER_ID, force = fals
 
 export async function checkFavorite(bookId, userId = DEFAULT_USER_ID) {
   if (favoriteStore.listLoaded) {
-    return favoriteStore.favoriteBookIds.has(bookId)
+    return !!favoriteStore.favoriteBookIds[bookId]
   }
-  if (favoriteStore.perBookStatus.has(bookId)) {
-    return favoriteStore.perBookStatus.get(bookId)
+  if (bookId in favoriteStore.perBookStatus) {
+    return favoriteStore.perBookStatus[bookId]
   }
-  favoriteStore.perBookStatus.set(bookId, false)
+  favoriteStore.perBookStatus[bookId] = false
   try {
     const res = await favoriteAPI.check(userId, bookId)
     if (res.code === 200) {
       const favorited = !!res.data.favorited
-      favoriteStore.perBookStatus.set(bookId, favorited)
+      favoriteStore.perBookStatus[bookId] = favorited
       if (favorited) {
-        favoriteStore.favoriteBookIds.add(bookId)
+        favoriteStore.favoriteBookIds[bookId] = true
       }
+      bumpVersion()
       return favorited
     }
   } catch (e) {
@@ -114,15 +126,16 @@ export async function toggleFavorite(bookId, userId = DEFAULT_USER_ID) {
     if (res.code === 200) {
       const { favorited, count } = res.data
       if (favorited) {
-        favoriteStore.favoriteBookIds.add(bookId)
-        favoriteStore.perBookStatus.set(bookId, true)
+        favoriteStore.favoriteBookIds[bookId] = true
+        favoriteStore.perBookStatus[bookId] = true
         ElMessage.success('已加入收藏')
       } else {
-        favoriteStore.favoriteBookIds.delete(bookId)
-        favoriteStore.perBookStatus.set(bookId, false)
+        delete favoriteStore.favoriteBookIds[bookId]
+        favoriteStore.perBookStatus[bookId] = false
         ElMessage.success('已取消收藏')
       }
       favoriteStore.favoriteCount = count
+      bumpVersion()
       return favorited
     } else {
       ElMessage.error(res.message || '操作失败')
@@ -135,10 +148,10 @@ export async function toggleFavorite(bookId, userId = DEFAULT_USER_ID) {
 }
 
 export function isFavorited(bookId) {
-  if (favoriteStore.perBookStatus.has(bookId)) {
-    return favoriteStore.perBookStatus.get(bookId)
+  if (bookId in favoriteStore.perBookStatus) {
+    return favoriteStore.perBookStatus[bookId]
   }
-  return favoriteStore.favoriteBookIds.has(bookId)
+  return !!favoriteStore.favoriteBookIds[bookId]
 }
 
 export function getFavoriteCount() {

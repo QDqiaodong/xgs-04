@@ -109,16 +109,13 @@ const emit = defineEmits(['borrow', 'favorite-change'])
 
 const router = useRouter()
 const checkingFavorite = ref(false)
-const localFavorited = ref(null)
 
 const isOwner = computed(() => {
   return props.currentUserId && props.book.owner?.id === props.currentUserId
 })
 
 const favorited = computed(() => {
-  if (localFavorited.value !== null) {
-    return localFavorited.value
-  }
+  favoriteStore.updateVersion
   return isFavorited(props.book.id)
 })
 
@@ -126,13 +123,12 @@ const lazyCheckFavorite = async () => {
   if (favoriteStore.listLoaded) {
     return
   }
-  if (favoriteStore.perBookStatus.has(props.book.id)) {
+  if (props.book.id in favoriteStore.perBookStatus) {
     return
   }
   checkingFavorite.value = true
   try {
-    const result = await checkFavorite(props.book.id, props.currentUserId || 1)
-    localFavorited.value = result
+    await checkFavorite(props.book.id, props.currentUserId || 1)
   } finally {
     checkingFavorite.value = false
   }
@@ -141,7 +137,6 @@ const lazyCheckFavorite = async () => {
 const handleToggleFavorite = async () => {
   const result = await toggleFavorite(props.book.id, props.currentUserId || 1)
   if (result !== null) {
-    localFavorited.value = result
     emit('favorite-change', { bookId: props.book.id, favorited: result })
   }
 }
@@ -157,7 +152,6 @@ onMounted(() => {
 })
 
 watch(() => props.book?.id, () => {
-  localFavorited.value = null
   if (props.book?.id != null) {
     lazyCheckFavorite()
   }
