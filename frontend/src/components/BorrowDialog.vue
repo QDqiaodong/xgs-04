@@ -43,8 +43,8 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="handleClose">取消</el-button>
-      <el-button type="primary" @click="handleSubmit">提交申请</el-button>
+      <el-button @click="handleClose" :disabled="submitting">取消</el-button>
+      <el-button type="primary" @click="handleSubmit" :loading="submitting" :disabled="submitting">提交申请</el-button>
     </template>
   </el-dialog>
 </template>
@@ -67,6 +67,7 @@ const emit = defineEmits(['update:modelValue', 'submit'])
 
 const visible = ref(false)
 const formRef = ref(null)
+const submitting = ref(false)
 const form = ref({
   startDate: null,
   endDate: null,
@@ -95,11 +96,23 @@ const handleClose = () => {
 }
 
 const handleSubmit = async () => {
-  await formRef.value?.validate()
-  emit('submit', {
-    bookId: props.book.id,
-    ...form.value
-  })
-  handleClose()
+  try {
+    await formRef.value?.validate()
+  } catch (e) {
+    return
+  }
+  submitting.value = true
+  try {
+    const result = emit('submit', {
+      bookId: props.book.id,
+      ...form.value
+    })
+    if (result instanceof Promise) {
+      await result
+    }
+    handleClose()
+  } finally {
+    submitting.value = false
+  }
 }
 </script>

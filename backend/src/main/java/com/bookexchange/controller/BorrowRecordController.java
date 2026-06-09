@@ -54,7 +54,14 @@ public class BorrowRecordController {
             return Result.error(validation.getMessage());
         }
         BorrowRecord record = borrowRecordService.createBorrowRecord(dto);
-        return record != null ? Result.success(record) : Result.error("创建借阅申请失败");
+        if (record != null) {
+            return Result.success(record);
+        }
+        validation = borrowRecordService.validateCreateBorrowRecord(dto);
+        if (!validation.isValid()) {
+            return Result.error(validation.getMessage());
+        }
+        return Result.error("提交过于频繁，请稍后再试");
     }
 
     @GetMapping("/{id}/validate-approve")

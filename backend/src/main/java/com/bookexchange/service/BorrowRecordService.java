@@ -21,6 +21,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
@@ -44,6 +45,7 @@ public class BorrowRecordService {
 
     private static final String BORROWED_RECORD_KEY = "borrowed:record:";
     private static final String USER_FILTER_KEY = "user:filter:";
+    private static final String BORROW_LOCK_KEY = "borrow:lock:";
     private static final List<String> ACTIVE_STATUSES = Arrays.asList("PENDING", "APPROVED", "BORROWING");
 
     public List<BorrowRecord> getBorrowRecordsByBorrowerId(Long borrowerId) {
@@ -143,6 +145,20 @@ public class BorrowRecordService {
             return ValidationResult.fail("该图书当前不可用");
         }
 
+        boolean hasActiveBorrow = borrowRecordRepository.existsByBookIdAndBorrowerIdAndStatusIn(
+            dto.getBookId(), dto.getBorrowerId(), ACTIVE_STATUSES
+        );
+        if (hasActiveBorrow) {
+            return ValidationResult.fail("您已对该图书存在借阅申请，请勿重复提交");
+        }
+
+        long bookActiveCount = borrowRecordRepository.countByBookIdAndStatusIn(
+            dto.getBookId(), ACTIVE_STATUSES
+        );
+        if (bookActiveCount > 0) {
+            return ValidationResult.fail("该图书已被他人申请借阅，暂时不可用");
+        }
+
         BorrowRule rule = borrowRuleService.getBorrowRule();
 
         long activeCount = borrowRecordRepository.countByBorrowerIdAndStatusIn(
@@ -169,25 +185,36 @@ public class BorrowRecordService {
         return ValidationResult.success();
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public BorrowRecord createBorrowRecord(BorrowRecordDTO dto) {
-        ValidationResult validation = validateCreateBorrowRecord(dto);
-        if (!validation.isValid()) {
+        String lockKey = BORROW_LOCK_KEY + dto.getBookId() + ":" + dto.getBorrowerId();
+        Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", 10, TimeUnit.SECONDS);
+        if (locked == null || !locked) {
             return null;
         }
 
-        Book book = bookRepository.findById(dto.getBookId()).orElse(null);
-        User borrower = userRepository.findById(dto.getBorrowerId()).orElse(null);
+        try {
+            ValidationResult validation = validateCreateBorrowRecord(dto);
+            if (!validation.isValid()) {
+                return null;
+            }
 
-        BorrowRecord record = new BorrowRecord();
-        record.setBook(book);
-        record.setBorrower(borrower);
-        record.setOwner(book.getOwner());
-        record.setStatus("PENDING");
-        record.setStartDate(dto.getStartDate());
-        record.setEndDate(dto.getEndDate());
-        record.setRemark(dto.getRemark());
+            Book book = bookRepository.findById(dto.getBookId()).orElse(null);
+            User borrower = userRepository.findById(dto.getBorrowerId()).orElse(null);
 
-        return borrowRecordRepository.save(record);
+            BorrowRecord record = new BorrowRecord();
+            record.setBook(book);
+            record.setBorrower(borrower);
+            record.setOwner(book.getOwner());
+            record.setStatus("PENDING");
+            record.setStartDate(dto.getStartDate());
+            record.setEndDate(dto.getEndDate());
+            record.setRemark(dto.getRemark());
+
+            return borrowRecordRepository.save(record);
+        } finally {
+            redisTemplate.delete(lockKey);
+        }
     }
 
     public ValidationResult validateApproveBorrowRecord(Long id) {

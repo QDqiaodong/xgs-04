@@ -83,6 +83,8 @@
           v-if="book.available && book.canBorrow && !isOwner"
           type="primary"
           size="large"
+          :loading="borrowSubmitting"
+          :disabled="borrowSubmitting"
           @click="handleBorrow"
         >
           申请借阅
@@ -212,6 +214,7 @@ const currentUserId = 1
 const book = ref(null)
 const loading = ref(false)
 const borrowDialogVisible = ref(false)
+const borrowSubmitting = ref(false)
 const checkingFavorite = ref(false)
 const localFavorited = ref(null)
 
@@ -373,6 +376,8 @@ const handleBorrow = () => {
 }
 
 const submitBorrow = async (data) => {
+  if (borrowSubmitting.value) return
+  borrowSubmitting.value = true
   try {
     const res = await borrowRecordAPI.create({
       ...data,
@@ -381,11 +386,16 @@ const submitBorrow = async (data) => {
     if (res.code === 200) {
       ElMessage.success('借阅申请已提交，请等待所有者审核')
       loadBook()
+      return true
     } else {
       ElMessage.error(res.message || '申请失败')
+      return false
     }
   } catch (e) {
     ElMessage.error('申请失败')
+    return false
+  } finally {
+    borrowSubmitting.value = false
   }
 }
 
