@@ -46,7 +46,8 @@ export const bookAPI = {
   update: (id, data) => api.put(`/books/${id}`, data),
   delete: (id) => api.delete(`/books/${id}`),
   addTags: (bookIds, tagIds) => api.post('/books/tags/add', { bookIds, tagIds }),
-  removeTags: (bookIds, tagIds) => api.post('/books/tags/remove', { bookIds, tagIds })
+  removeTags: (bookIds, tagIds) => api.post('/books/tags/remove', { bookIds, tagIds }),
+  batchOperate: (data) => api.post('/books/batch', data)
 }
 
 export const borrowRecordAPI = {

@@ -1,5 +1,7 @@
 package com.bookexchange.controller;
 
+import com.bookexchange.dto.BookBatchOperationDTO;
+import com.bookexchange.dto.BookBatchResultDTO;
 import com.bookexchange.dto.BookDTO;
 import com.bookexchange.dto.BookQueryDTO;
 import com.bookexchange.dto.BookTagDTO;
@@ -73,6 +75,18 @@ public class BookController {
     public Result<Void> removeTagsFromBooks(@RequestBody BookTagDTO bookTagDTO) {
         boolean success = bookService.removeTagsFromBooks(bookTagDTO.getBookIds(), bookTagDTO.getTagIds());
         return success ? Result.success() : Result.error("批量取消标签失败");
+    }
+
+    @PostMapping("/batch")
+    public Result<BookBatchResultDTO> batchOperate(@RequestBody BookBatchOperationDTO dto) {
+        if (dto.getOperation() == null || dto.getOperation().trim().isEmpty()) {
+            return Result.error("操作类型不能为空");
+        }
+        if (dto.getBookIds() == null || dto.getBookIds().isEmpty()) {
+            return Result.error("图书ID列表不能为空");
+        }
+        BookBatchResultDTO result = bookService.batchOperate(dto);
+        return Result.success(result);
     }
 
     private void enrichBookWithReviewStats(Book book) {

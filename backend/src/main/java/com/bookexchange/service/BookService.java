@@ -1,5 +1,7 @@
 package com.bookexchange.service;
 
+import com.bookexchange.dto.BookBatchOperationDTO;
+import com.bookexchange.dto.BookBatchResultDTO;
 import com.bookexchange.dto.BookDTO;
 import com.bookexchange.dto.BookQueryDTO;
 import com.bookexchange.entity.Book;
@@ -10,6 +12,7 @@ import com.bookexchange.entity.Tag;
 import com.bookexchange.entity.User;
 import com.bookexchange.repository.BookRepository;
 import com.bookexchange.repository.BookTagRepository;
+import com.bookexchange.repository.BorrowRecordRepository;
 import com.bookexchange.repository.CategoryRepository;
 import com.bookexchange.repository.CityRepository;
 import com.bookexchange.repository.TagRepository;
@@ -28,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -38,12 +42,15 @@ public class BookService {
 
     private static final Logger log = LoggerFactory.getLogger(BookService.class);
 
+    private static final List<String> ACTIVE_BORROW_STATUSES = Arrays.asList("PENDING", "APPROVED", "BORROWING");
+
     private final BookRepository bookRepository;
     private final CategoryRepository categoryRepository;
     private final CityRepository cityRepository;
     private final UserRepository userRepository;
     private final TagRepository tagRepository;
     private final BookTagRepository bookTagRepository;
+    private final BorrowRecordRepository borrowRecordRepository;
     private final RedisTemplate<String, Object> redisTemplate;
 
     private static final String BORROWED_BOOK_KEY = "borrowed:book:";
@@ -314,6 +321,164 @@ public class BookService {
             redisTemplate.delete(BORROWED_BOOK_KEY + id);
         } catch (Exception e) {
             log.warn("Failed to delete cache for book {}: {}", id, e.getMessage());
+        }
+    }
+
+    @Transactional
+    public BookBatchResultDTO batchOperate(BookBatchOperationDTO dto) {
+        BookBatchResultDTO result = new BookBatchResultDTO();
+        List<Long> bookIds = dto.getBookIds();
+        if (bookIds == null || bookIds.isEmpty()) {
+            result.setTotalCount(0);
+            result.setSuccessCount(0);
+            result.setFailCount(0);
+            return result;
+        }
+
+        result.setTotalCount(bookIds.size());
+        List<Long> successIds = new ArrayList<>();
+        List<BookBatchResultDTO.BookBatchFailDetail> failDetails = new ArrayList<>();
+
+        String operation = dto.getOperation();
+        if ("UPDATE_CATEGORY".equals(operation)) {
+            batchUpdateCategory(dto, bookIds, successIds, failDetails);
+        } else if ("SET_CAN_BORROW".equals(operation)) {
+            batchSetCanBorrow(dto, bookIds, successIds, failDetails);
+        } else if ("SET_AVAILABLE".equals(operation)) {
+            batchSetAvailable(dto, bookIds, successIds, failDetails);
+        } else if ("DELETE".equals(operation)) {
+            batchDelete(bookIds, successIds, failDetails);
+        } else {
+            for (Long bookId : bookIds) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, null, "不支持的操作类型: " + operation));
+            }
+        }
+
+        result.setSuccessIds(successIds);
+        result.setFailDetails(failDetails);
+        result.setSuccessCount(successIds.size());
+        result.setFailCount(failDetails.size());
+        return result;
+    }
+
+    private void batchUpdateCategory(BookBatchOperationDTO dto, List<Long> bookIds,
+                                     List<Long> successIds, List<BookBatchResultDTO.BookBatchFailDetail> failDetails) {
+        Long categoryId = dto.getCategoryId();
+        if (categoryId == null) {
+            for (Long bookId : bookIds) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, null, "分类ID不能为空"));
+            }
+            return;
+        }
+        Category category = categoryRepository.findById(categoryId).orElse(null);
+        if (category == null) {
+            for (Long bookId : bookIds) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, null, "目标分类不存在"));
+            }
+            return;
+        }
+
+        List<Book> books = bookRepository.findAllById(bookIds);
+        for (Long bookId : bookIds) {
+            Book book = books.stream().filter(b -> b.getId().equals(bookId)).findFirst().orElse(null);
+            if (book == null) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, null, "图书不存在"));
+                continue;
+            }
+            try {
+                book.setCategory(category);
+                bookRepository.save(book);
+                successIds.add(bookId);
+            } catch (Exception e) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, book.getTitle(), "更新失败: " + e.getMessage()));
+            }
+        }
+    }
+
+    private void batchSetCanBorrow(BookBatchOperationDTO dto, List<Long> bookIds,
+                                   List<Long> successIds, List<BookBatchResultDTO.BookBatchFailDetail> failDetails) {
+        Boolean canBorrow = dto.getCanBorrow();
+        if (canBorrow == null) {
+            for (Long bookId : bookIds) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, null, "可借状态参数不能为空"));
+            }
+            return;
+        }
+
+        List<Book> books = bookRepository.findAllById(bookIds);
+        for (Long bookId : bookIds) {
+            Book book = books.stream().filter(b -> b.getId().equals(bookId)).findFirst().orElse(null);
+            if (book == null) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, null, "图书不存在"));
+                continue;
+            }
+            if (!canBorrow) {
+                if (borrowRecordRepository.existsByBookIdAndStatusIn(bookId, ACTIVE_BORROW_STATUSES)) {
+                    failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, book.getTitle(), "存在活跃借阅记录，无法设置为不可借"));
+                    continue;
+                }
+            }
+            try {
+                book.setCanBorrow(canBorrow);
+                bookRepository.save(book);
+                successIds.add(bookId);
+            } catch (Exception e) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, book.getTitle(), "更新失败: " + e.getMessage()));
+            }
+        }
+    }
+
+    private void batchSetAvailable(BookBatchOperationDTO dto, List<Long> bookIds,
+                                   List<Long> successIds, List<BookBatchResultDTO.BookBatchFailDetail> failDetails) {
+        Boolean available = dto.getAvailable();
+        if (available == null) {
+            for (Long bookId : bookIds) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, null, "上下架状态参数不能为空"));
+            }
+            return;
+        }
+
+        List<Book> books = bookRepository.findAllById(bookIds);
+        for (Long bookId : bookIds) {
+            Book book = books.stream().filter(b -> b.getId().equals(bookId)).findFirst().orElse(null);
+            if (book == null) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, null, "图书不存在"));
+                continue;
+            }
+            if (!available) {
+                if (borrowRecordRepository.existsByBookIdAndStatusIn(bookId, ACTIVE_BORROW_STATUSES)) {
+                    failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, book.getTitle(), "存在活跃借阅记录，无法下架"));
+                    continue;
+                }
+            }
+            try {
+                updateBookAvailability(bookId, available);
+                successIds.add(bookId);
+            } catch (Exception e) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, book.getTitle(), "更新失败: " + e.getMessage()));
+            }
+        }
+    }
+
+    private void batchDelete(List<Long> bookIds,
+                             List<Long> successIds, List<BookBatchResultDTO.BookBatchFailDetail> failDetails) {
+        List<Book> books = bookRepository.findAllById(bookIds);
+        for (Long bookId : bookIds) {
+            Book book = books.stream().filter(b -> b.getId().equals(bookId)).findFirst().orElse(null);
+            if (book == null) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, null, "图书不存在"));
+                continue;
+            }
+            if (borrowRecordRepository.existsByBookIdAndStatusIn(bookId, ACTIVE_BORROW_STATUSES)) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, book.getTitle(), "存在活跃借阅记录，无法删除"));
+                continue;
+            }
+            try {
+                deleteBook(bookId);
+                successIds.add(bookId);
+            } catch (Exception e) {
+                failDetails.add(new BookBatchResultDTO.BookBatchFailDetail(bookId, book.getTitle(), "删除失败: " + e.getMessage()));
+            }
         }
     }
 }
