@@ -73,6 +73,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { borrowRecordAPI } from '@/api'
+import { refreshBorrowRecords } from '@/store/borrowRecord'
 
 const currentUserId = 1
 const activeTab = ref('received')
@@ -121,6 +122,7 @@ const handleApprove = async (row) => {
     const res = await borrowRecordAPI.approve(row.id)
     if (res.code === 200) {
       ElMessage.success('已同意借阅申请')
+      refreshBorrowRecords()
       loadReceived()
     }
   } catch (e) {
@@ -134,6 +136,7 @@ const handleReject = async (row) => {
     const res = await borrowRecordAPI.reject(row.id)
     if (res.code === 200) {
       ElMessage.success('已拒绝借阅申请')
+      refreshBorrowRecords()
       loadReceived()
     }
   } catch {
@@ -145,6 +148,7 @@ const handleConfirmBorrow = async (row) => {
     const res = await borrowRecordAPI.confirmBorrow(row.id)
     if (res.code === 200) {
       ElMessage.success('已确认借出')
+      refreshBorrowRecords()
       loadReceived()
     }
   } catch (e) {
@@ -157,6 +161,7 @@ const handleConfirmReturn = async (row) => {
     const res = await borrowRecordAPI.confirmReturn(row.id)
     if (res.code === 200) {
       ElMessage.success('已确认归还')
+      refreshBorrowRecords()
       loadReceived()
     }
   } catch (e) {

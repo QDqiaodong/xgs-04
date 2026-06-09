@@ -191,6 +191,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, Close, Refresh, User, Calendar, Clock, Phone, ChatDotRound } from '@element-plus/icons-vue'
 import { borrowRecordAPI } from '@/api'
+import { refreshBorrowRecords } from '@/store/borrowRecord'
 
 const currentUserId = 1
 const loading = ref(false)
@@ -259,6 +260,7 @@ const handleApprove = async (record) => {
     const res = await borrowRecordAPI.approve(record.id)
     if (res.code === 200) {
       ElMessage.success('已同意借阅申请')
+      refreshBorrowRecords()
       loadData()
     }
   } catch {
@@ -275,6 +277,7 @@ const handleReject = async (record) => {
     const res = await borrowRecordAPI.reject(record.id)
     if (res.code === 200) {
       ElMessage.success('已拒绝借阅申请')
+      refreshBorrowRecords()
       loadData()
     }
   } catch {
@@ -294,6 +297,7 @@ const handleBatchApprove = async () => {
     )
     const successCount = results.filter(r => r.status === 'fulfilled' && r.value.code === 200).length
     ElMessage.success(`成功同意 ${successCount} 项申请`)
+    refreshBorrowRecords()
     loadData()
   } catch {
   }
@@ -312,6 +316,7 @@ const handleBatchReject = async () => {
     )
     const successCount = results.filter(r => r.status === 'fulfilled' && r.value.code === 200).length
     ElMessage.success(`成功拒绝 ${successCount} 项申请`)
+    refreshBorrowRecords()
     loadData()
   } catch {
   }

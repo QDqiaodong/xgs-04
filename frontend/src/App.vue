@@ -47,28 +47,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { loadFavorites, getFavoriteCount, ensureFavoriteCount } from '@/store/favorites'
-import { borrowRecordAPI } from '@/api'
+import { loadPendingApprovalCount, getPendingApprovalCount, borrowRecordStore } from '@/store/borrowRecord'
 
 const route = useRoute()
 const activeMenu = computed(() => route.path)
 
 const favoriteCount = computed(() => getFavoriteCount())
-const pendingApprovalCount = ref(0)
-
-const loadPendingApprovalCount = async () => {
-  try {
-    const currentUserId = 1
-    const res = await borrowRecordAPI.getByOwner(currentUserId)
-    if (res.code === 200) {
-      pendingApprovalCount.value = res.data.filter(r => r.status === 'PENDING').length
-    }
-  } catch (e) {
-    console.error('加载待审批数量失败', e)
-  }
-}
+const pendingApprovalCount = computed(() => {
+  borrowRecordStore.updateVersion
+  return getPendingApprovalCount()
+})
 
 onMounted(async () => {
   const success = await loadFavorites()

@@ -213,10 +213,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Filter, ArrowDown, Search, Refresh } from '@element-plus/icons-vue'
 import { borrowRecordAPI, categoryAPI, reviewAPI } from '@/api'
+import { borrowRecordStore } from '@/store/borrowRecord'
 
 const currentUserId = 1
 const historyList = ref([])
@@ -432,6 +433,10 @@ const submitReview = async () => {
 
 onMounted(() => {
   loadCategories()
+  loadHistory()
+})
+
+watch(() => borrowRecordStore.updateVersion, () => {
   loadHistory()
 })
 </script>
