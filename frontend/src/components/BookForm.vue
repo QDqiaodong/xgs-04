@@ -128,6 +128,7 @@ const rules = {
 }
 
 const isEdit = ref(false)
+const skipNextWatchSave = ref(false)
 
 const currentBookId = computed(() => (isEdit.value && props.book ? props.book.id : null))
 const ownerIdRef = computed(() => props.ownerId)
@@ -213,11 +214,13 @@ const resetForm = () => {
   }
   isEdit.value = false
   formRef.value?.resetFields()
+  resetBaseline()
 }
 
 watch(() => props.modelValue, async (val) => {
   visible.value = val
   if (val) {
+    skipNextWatchSave.value = false
     if (props.book) {
       isEdit.value = true
       form.value = {
@@ -241,13 +244,17 @@ watch(() => props.modelValue, async (val) => {
     startTimer()
   } else {
     stopTimer()
-    forceSave()
+    if (!skipNextWatchSave.value) {
+      forceSave()
+    }
+    skipNextWatchSave.value = false
   }
 })
 
 const handleClose = () => {
   stopTimer()
   forceSave()
+  skipNextWatchSave.value = true
   emit('update:modelValue', false)
   resetForm()
 }
@@ -255,6 +262,8 @@ const handleClose = () => {
 const handleSubmit = async () => {
   await formRef.value?.validate()
   stopTimer()
+  clearCurrentDraft()
+  skipNextWatchSave.value = true
   emit('submit', {
     ...form.value,
     ownerId: props.ownerId
