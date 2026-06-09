@@ -128,3 +128,19 @@ CREATE TABLE IF NOT EXISTS book_tag (
     FOREIGN KEY (book_id) REFERENCES book(id) ON DELETE CASCADE,
     FOREIGN KEY (tag_id) REFERENCES tag(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS borrow_rule (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    max_borrow_count INT NOT NULL DEFAULT 5 COMMENT '单用户最大可借阅数量',
+    max_borrow_days INT NOT NULL DEFAULT 30 COMMENT '单次借阅最长天数',
+    reservation_hours INT NOT NULL DEFAULT 48 COMMENT '预约保留时长（小时）',
+    allow_renew BOOLEAN NOT NULL DEFAULT TRUE COMMENT '是否允许续借',
+    max_renew_count INT NOT NULL DEFAULT 2 COMMENT '续借次数上限',
+    description VARCHAR(500) COMMENT '规则描述',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO borrow_rule (max_borrow_count, max_borrow_days, reservation_hours, allow_renew, max_renew_count, description)
+SELECT 5, 30, 48, TRUE, 2, '系统默认借阅规则'
+WHERE NOT EXISTS (SELECT 1 FROM borrow_rule);

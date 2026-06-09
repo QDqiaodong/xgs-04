@@ -55,13 +55,20 @@ export const borrowRecordAPI = {
   getByBorrower: (borrowerId) => api.get(`/borrow-records/borrower/${borrowerId}`),
   getByOwner: (ownerId) => api.get(`/borrow-records/owner/${ownerId}`),
   getById: (id) => api.get(`/borrow-records/${id}`),
+  validateCreate: (data) => api.post('/borrow-records/validate-create', data),
   create: (data) => api.post('/borrow-records', data),
+  validateApprove: (id) => api.get(`/borrow-records/${id}/validate-approve'),
   approve: (id) => api.put(`/borrow-records/${id}/approve`),
   reject: (id) => api.put(`/borrow-records/${id}/reject`),
   confirmBorrow: (id) => api.put(`/borrow-records/${id}/confirm-borrow`),
   confirmReturn: (id) => api.put(`/borrow-records/${id}/confirm-return`),
   saveFilter: (userId, filter) => api.post(`/borrow-records/filter/${userId}`, filter),
   getFilter: (userId) => api.get(`/borrow-records/filter/${userId}`)
+}
+
+export const borrowRuleAPI = {
+  get: () => api.get('/borrow-rules'),
+  update: (data) => api.put('/borrow-rules', data)
 }
 
 export const favoriteAPI = {

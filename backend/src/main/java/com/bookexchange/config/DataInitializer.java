@@ -1,9 +1,11 @@
 package com.bookexchange.config;
 
+import com.bookexchange.entity.BorrowRule;
 import com.bookexchange.entity.Category;
 import com.bookexchange.entity.City;
 import com.bookexchange.entity.Tag;
 import com.bookexchange.entity.User;
+import com.bookexchange.repository.BorrowRuleRepository;
 import com.bookexchange.repository.CategoryRepository;
 import com.bookexchange.repository.CityRepository;
 import com.bookexchange.repository.TagRepository;
@@ -22,7 +24,8 @@ public class DataInitializer {
     public CommandLineRunner initData(CityRepository cityRepository,
                                        CategoryRepository categoryRepository,
                                        UserRepository userRepository,
-                                       TagRepository tagRepository) {
+                                       TagRepository tagRepository,
+                                       BorrowRuleRepository borrowRuleRepository) {
         return args -> {
             if (cityRepository.count() == 0) {
                 List<City> cities = Arrays.asList(
@@ -84,6 +87,17 @@ public class DataInitializer {
                     createTag("悬疑", "悬疑推理类", "#2C3E50")
                 );
                 tagRepository.saveAll(tags);
+            }
+
+            if (borrowRuleRepository.count() == 0) {
+                BorrowRule rule = new BorrowRule();
+                rule.setMaxBorrowCount(5);
+                rule.setMaxBorrowDays(30);
+                rule.setReservationHours(48);
+                rule.setAllowRenew(true);
+                rule.setMaxRenewCount(2);
+                rule.setDescription("系统默认借阅规则");
+                borrowRuleRepository.save(rule);
             }
         };
     }

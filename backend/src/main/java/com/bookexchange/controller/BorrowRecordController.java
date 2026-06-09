@@ -4,6 +4,7 @@ import com.bookexchange.dto.BorrowRecordDTO;
 import com.bookexchange.dto.BorrowRecordQueryDTO;
 import com.bookexchange.dto.PageResult;
 import com.bookexchange.dto.Result;
+import com.bookexchange.dto.ValidationResult;
 import com.bookexchange.entity.BorrowRecord;
 import com.bookexchange.service.BorrowRecordService;
 import lombok.RequiredArgsConstructor;
@@ -41,14 +42,32 @@ public class BorrowRecordController {
         return record != null ? Result.success(record) : Result.error("借阅记录不存在");
     }
 
+    @PostMapping("/validate-create")
+    public Result<ValidationResult> validateCreateBorrowRecord(@RequestBody BorrowRecordDTO dto) {
+        return Result.success(borrowRecordService.validateCreateBorrowRecord(dto));
+    }
+
     @PostMapping
     public Result<BorrowRecord> createBorrowRecord(@RequestBody BorrowRecordDTO dto) {
+        ValidationResult validation = borrowRecordService.validateCreateBorrowRecord(dto);
+        if (!validation.isValid()) {
+            return Result.error(validation.getMessage());
+        }
         BorrowRecord record = borrowRecordService.createBorrowRecord(dto);
         return record != null ? Result.success(record) : Result.error("创建借阅申请失败");
     }
 
+    @GetMapping("/{id}/validate-approve")
+    public Result<ValidationResult> validateApproveBorrowRecord(@PathVariable Long id) {
+        return Result.success(borrowRecordService.validateApproveBorrowRecord(id));
+    }
+
     @PutMapping("/{id}/approve")
     public Result<BorrowRecord> approveBorrowRecord(@PathVariable Long id) {
+        ValidationResult validation = borrowRecordService.validateApproveBorrowRecord(id);
+        if (!validation.isValid()) {
+            return Result.error(validation.getMessage());
+        }
         BorrowRecord record = borrowRecordService.approveBorrowRecord(id);
         return record != null ? Result.success(record) : Result.error("审核失败");
     }

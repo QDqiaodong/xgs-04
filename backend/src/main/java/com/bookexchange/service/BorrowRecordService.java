@@ -2,8 +2,10 @@ package com.bookexchange.service;
 
 import com.bookexchange.dto.BorrowRecordDTO;
 import com.bookexchange.dto.BorrowRecordQueryDTO;
+import com.bookexchange.dto.ValidationResult;
 import com.bookexchange.entity.Book;
 import com.bookexchange.entity.BorrowRecord;
+import com.bookexchange.entity.BorrowRule;
 import com.bookexchange.entity.User;
 import com.bookexchange.repository.BookRepository;
 import com.bookexchange.repository.BorrowRecordRepository;
@@ -21,8 +23,11 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -34,10 +39,12 @@ public class BorrowRecordService {
     private final BookRepository bookRepository;
     private final UserRepository userRepository;
     private final BookService bookService;
+    private final BorrowRuleService borrowRuleService;
     private final RedisTemplate<String, Object> redisTemplate;
 
     private static final String BORROWED_RECORD_KEY = "borrowed:record:";
     private static final String USER_FILTER_KEY = "user:filter:";
+    private static final List<String> ACTIVE_STATUSES = Arrays.asList("PENDING", "APPROVED", "BORROWING");
 
     public List<BorrowRecord> getBorrowRecordsByBorrowerId(Long borrowerId) {
         return borrowRecordRepository.findByBorrowerIdOrderByCreateTimeDesc(borrowerId);
@@ -120,17 +127,56 @@ public class BorrowRecordService {
         };
     }
 
-    public BorrowRecord createBorrowRecord(BorrowRecordDTO dto) {
+    public ValidationResult validateCreateBorrowRecord(BorrowRecordDTO dto) {
         Book book = bookRepository.findById(dto.getBookId()).orElse(null);
         User borrower = userRepository.findById(dto.getBorrowerId()).orElse(null);
 
         if (book == null || borrower == null) {
+            return ValidationResult.fail("图书或用户不存在");
+        }
+
+        if (!book.getCanBorrow()) {
+            return ValidationResult.fail("该图书不允许借阅");
+        }
+
+        if (!book.getAvailable()) {
+            return ValidationResult.fail("该图书当前不可用");
+        }
+
+        BorrowRule rule = borrowRuleService.getBorrowRule();
+
+        long activeCount = borrowRecordRepository.countByBorrowerIdAndStatusIn(
+            dto.getBorrowerId(), ACTIVE_STATUSES
+        );
+        if (activeCount >= rule.getMaxBorrowCount()) {
+            return ValidationResult.fail(
+                "已达最大借阅数量限制，当前最多可同时借阅 " + rule.getMaxBorrowCount() + " 本图书"
+            );
+        }
+
+        if (dto.getStartDate() != null && dto.getEndDate() != null) {
+            if (dto.getEndDate().isBefore(dto.getStartDate())) {
+                return ValidationResult.fail("结束日期不能早于开始日期");
+            }
+            long days = ChronoUnit.DAYS.between(dto.getStartDate(), dto.getEndDate());
+            if (days > rule.getMaxBorrowDays()) {
+                return ValidationResult.fail(
+                    "借阅天数超过最大限制，单次最长可借阅 " + rule.getMaxBorrowDays() + " 天"
+                );
+            }
+        }
+
+        return ValidationResult.success();
+    }
+
+    public BorrowRecord createBorrowRecord(BorrowRecordDTO dto) {
+        ValidationResult validation = validateCreateBorrowRecord(dto);
+        if (!validation.isValid()) {
             return null;
         }
 
-        if (!book.getCanBorrow() || !book.getAvailable()) {
-            return null;
-        }
+        Book book = bookRepository.findById(dto.getBookId()).orElse(null);
+        User borrower = userRepository.findById(dto.getBorrowerId()).orElse(null);
 
         BorrowRecord record = new BorrowRecord();
         record.setBook(book);
@@ -144,11 +190,45 @@ public class BorrowRecordService {
         return borrowRecordRepository.save(record);
     }
 
-    public BorrowRecord approveBorrowRecord(Long id) {
+    public ValidationResult validateApproveBorrowRecord(Long id) {
         BorrowRecord record = borrowRecordRepository.findById(id).orElse(null);
-        if (record == null || !"PENDING".equals(record.getStatus())) {
+        if (record == null) {
+            return ValidationResult.fail("借阅记录不存在");
+        }
+        if (!"PENDING".equals(record.getStatus())) {
+            return ValidationResult.fail("该借阅申请当前状态不允许审核");
+        }
+
+        BorrowRule rule = borrowRuleService.getBorrowRule();
+
+        long activeCount = borrowRecordRepository.countByBorrowerIdAndStatusIn(
+            record.getBorrower().getId(), ACTIVE_STATUSES
+        );
+        if (activeCount >= rule.getMaxBorrowCount()) {
+            return ValidationResult.fail(
+                "借阅人已达最大借阅数量限制，当前最多可同时借阅 " + rule.getMaxBorrowCount() + " 本图书"
+            );
+        }
+
+        if (record.getStartDate() != null && record.getEndDate() != null) {
+            long days = ChronoUnit.DAYS.between(record.getStartDate(), record.getEndDate());
+            if (days > rule.getMaxBorrowDays()) {
+                return ValidationResult.fail(
+                    "借阅天数超过最大限制，单次最长可借阅 " + rule.getMaxBorrowDays() + " 天"
+                );
+            }
+        }
+
+        return ValidationResult.success();
+    }
+
+    public BorrowRecord approveBorrowRecord(Long id) {
+        ValidationResult validation = validateApproveBorrowRecord(id);
+        if (!validation.isValid()) {
             return null;
         }
+
+        BorrowRecord record = borrowRecordRepository.findById(id).orElse(null);
 
         record.setStatus("APPROVED");
         bookService.updateBookAvailability(record.getBook().getId(), false);
