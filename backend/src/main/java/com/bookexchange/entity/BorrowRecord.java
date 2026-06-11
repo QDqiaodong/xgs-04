@@ -59,6 +59,6 @@ public class BorrowRecord implements Serializable {
     @Column(name = "overdue_days")
     private Integer overdueDays;
 
-    @Column(name = "overdue_fine", precision = 10, scale = 2)
+    @Column(name = "overdue_fine")
     private Double overdueFine;
 }
