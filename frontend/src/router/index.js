@@ -35,6 +35,11 @@ const routes = [
     path: '/borrow-approval',
     name: 'BorrowApproval',
     component: () => import('@/views/BorrowApproval.vue')
+  },
+  {
+    path: '/overdue-management',
+    name: 'OverdueManagement',
+    component: () => import('@/views/OverdueManagement.vue')
   }
 ]
 

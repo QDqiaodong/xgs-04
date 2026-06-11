@@ -148,6 +148,25 @@
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="逾期天数" width="100">
+        <template #default="{ row }">
+          <template v-if="row.status === 'OVERDUE'">
+            <el-tag type="danger" size="small">{{ row.overdueDays || 0 }} 天</el-tag>
+          </template>
+          <template v-else-if="row.status === 'RETURNED' && row.overdueDays > 0">
+            <el-tag type="warning" size="small">{{ row.overdueDays }} 天</el-tag>
+          </template>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="逾期罚金" width="100">
+        <template #default="{ row }">
+          <template v-if="row.overdueFine != null && row.overdueFine > 0">
+            <span class="fine-amount">¥{{ row.overdueFine }}</span>
+          </template>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
       <el-table-column label="评价" width="120" fixed="right">
         <template #default="{ row }">
@@ -242,6 +261,7 @@ const statusMap = {
   APPROVED: { text: '已同意', type: 'primary' },
   REJECTED: { text: '已拒绝', type: 'danger' },
   BORROWING: { text: '借阅中', type: 'info' },
+  OVERDUE: { text: '已逾期', type: 'danger' },
   RETURNED: { text: '已归还', type: 'success' }
 }
 
@@ -522,5 +542,10 @@ watch(() => borrowRecordStore.updateVersion, () => {
 
 .filter-tag {
   margin: 0;
+}
+
+.fine-amount {
+  color: #e6a23c;
+  font-weight: 600;
 }
 </style>

@@ -41,12 +41,12 @@
                 确认借出
               </el-button>
               <el-button
-                v-if="row.status === 'BORROWING'"
+                v-if="row.status === 'BORROWING' || row.status === 'OVERDUE'"
                 size="small"
-                type="success"
+                :type="row.status === 'OVERDUE' ? 'danger' : 'success'"
                 @click="handleConfirmReturn(row)"
               >
-                确认归还
+                {{ row.status === 'OVERDUE' ? '逾期归还' : '确认归还' }}
               </el-button>
             </template>
           </el-table-column>
@@ -86,6 +86,7 @@ const statusMap = {
   APPROVED: { text: '已同意', type: 'primary' },
   REJECTED: { text: '已拒绝', type: 'danger' },
   BORROWING: { text: '借阅中', type: 'info' },
+  OVERDUE: { text: '已逾期', type: 'danger' },
   RETURNED: { text: '已归还', type: 'success' }
 }
 

@@ -2,6 +2,7 @@ package com.bookexchange.controller;
 
 import com.bookexchange.dto.BorrowRecordDTO;
 import com.bookexchange.dto.BorrowRecordQueryDTO;
+import com.bookexchange.dto.OverdueQueryDTO;
 import com.bookexchange.dto.PageResult;
 import com.bookexchange.dto.Result;
 import com.bookexchange.dto.ValidationResult;
@@ -95,6 +96,18 @@ public class BorrowRecordController {
     public Result<BorrowRecord> confirmReturn(@PathVariable Long id) {
         BorrowRecord record = borrowRecordService.confirmReturn(id);
         return record != null ? Result.success(record) : Result.error("确认归还失败");
+    }
+
+    @PostMapping("/overdue/identify")
+    public Result<Integer> identifyOverdueRecords() {
+        int count = borrowRecordService.identifyOverdueRecords();
+        return Result.success(count);
+    }
+
+    @PostMapping("/overdue/query")
+    public Result<PageResult<BorrowRecord>> queryOverdueRecords(@RequestBody OverdueQueryDTO queryDTO) {
+        Page<BorrowRecord> page = borrowRecordService.queryOverdueRecords(queryDTO);
+        return Result.success(new PageResult<>(page.getContent(), page.getTotalElements()));
     }
 
     @PostMapping("/filter/{userId}")

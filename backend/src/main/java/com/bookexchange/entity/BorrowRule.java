@@ -34,6 +34,9 @@ public class BorrowRule implements Serializable {
     @Column(name = "max_renew_count", nullable = false)
     private Integer maxRenewCount = 2;
 
+    @Column(name = "daily_fine_rate", nullable = false)
+    private Double dailyFineRate = 0.5;
+
     @Column(length = 500)
     private String description;
 

@@ -2,6 +2,7 @@ package com.bookexchange.service;
 
 import com.bookexchange.dto.BorrowRecordDTO;
 import com.bookexchange.dto.BorrowRecordQueryDTO;
+import com.bookexchange.dto.OverdueQueryDTO;
 import com.bookexchange.dto.ValidationResult;
 import com.bookexchange.entity.Book;
 import com.bookexchange.entity.BorrowRecord;
@@ -46,7 +47,7 @@ public class BorrowRecordService {
     private static final String BORROWED_RECORD_KEY = "borrowed:record:";
     private static final String USER_FILTER_KEY = "user:filter:";
     private static final String BORROW_LOCK_KEY = "borrow:lock:";
-    private static final List<String> ACTIVE_STATUSES = Arrays.asList("PENDING", "APPROVED", "BORROWING");
+    private static final List<String> ACTIVE_STATUSES = Arrays.asList("PENDING", "APPROVED", "BORROWING", "OVERDUE");
 
     public List<BorrowRecord> getBorrowRecordsByBorrowerId(Long borrowerId) {
         return borrowRecordRepository.findByBorrowerIdOrderByCreateTimeDesc(borrowerId);
@@ -286,10 +287,22 @@ public class BorrowRecordService {
         return borrowRecordRepository.save(record);
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public BorrowRecord confirmReturn(Long id) {
         BorrowRecord record = borrowRecordRepository.findById(id).orElse(null);
-        if (record == null || !"BORROWING".equals(record.getStatus())) {
+        if (record == null) {
             return null;
+        }
+        if (!"BORROWING".equals(record.getStatus()) && !"OVERDUE".equals(record.getStatus())) {
+            return null;
+        }
+
+        if ("OVERDUE".equals(record.getStatus())) {
+            BorrowRule rule = borrowRuleService.getBorrowRule();
+            int overdueDays = calculateOverdueDays(record);
+            double dailyRate = rule.getDailyFineRate() != null ? rule.getDailyFineRate() : 0.5;
+            record.setOverdueDays(overdueDays);
+            record.setOverdueFine(Math.round(overdueDays * dailyRate * 100.0) / 100.0);
         }
 
         record.setStatus("RETURNED");
@@ -308,5 +321,93 @@ public class BorrowRecordService {
     public Object getUserFilterConditions(Long userId) {
         String key = USER_FILTER_KEY + userId;
         return redisTemplate.opsForValue().get(key);
+    }
+
+    private int calculateOverdueDays(BorrowRecord record) {
+        if (record.getEndDate() == null) {
+            return 0;
+        }
+        LocalDate today = LocalDate.now();
+        long days = ChronoUnit.DAYS.between(record.getEndDate(), today);
+        return days > 0 ? (int) days : 0;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public int identifyOverdueRecords() {
+        LocalDate today = LocalDate.now();
+        List<BorrowRecord> overdueRecords = borrowRecordRepository.findOverdueNotMarked(today);
+        int count = 0;
+        for (BorrowRecord record : overdueRecords) {
+            int overdueDays = calculateOverdueDays(record);
+            borrowRecordRepository.markAsOverdue(record.getId(), overdueDays);
+            count++;
+        }
+        return count;
+    }
+
+    public Page<BorrowRecord> queryOverdueRecords(OverdueQueryDTO queryDTO) {
+        Sort sort;
+        if ("overdueDays".equals(queryDTO.getSortBy())) {
+            Sort.Direction direction = "asc".equalsIgnoreCase(queryDTO.getSortOrder())
+                ? Sort.Direction.ASC : Sort.Direction.DESC;
+            sort = Sort.by(direction, "overdueDays");
+        } else {
+            sort = Sort.by(Sort.Direction.DESC, "overdueDays");
+        }
+
+        Pageable pageable = PageRequest.of(
+            queryDTO.getPageNum() - 1,
+            queryDTO.getPageSize(),
+            sort
+        );
+
+        Specification<BorrowRecord> spec = buildOverdueSpecification(queryDTO);
+        return borrowRecordRepository.findAll(spec, pageable);
+    }
+
+    private Specification<BorrowRecord> buildOverdueSpecification(OverdueQueryDTO queryDTO) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            predicates.add(cb.equal(root.get("status"), "OVERDUE"));
+
+            if (queryDTO.getBorrowerId() != null) {
+                predicates.add(cb.equal(root.get("borrower").get("id"), queryDTO.getBorrowerId()));
+            }
+
+            if (queryDTO.getOwnerId() != null) {
+                predicates.add(cb.equal(root.get("owner").get("id"), queryDTO.getOwnerId()));
+            }
+
+            if (queryDTO.getBookId() != null) {
+                predicates.add(cb.equal(root.get("book").get("id"), queryDTO.getBookId()));
+            }
+
+            if (StringUtils.hasText(queryDTO.getBorrowerKeyword())) {
+                Join<BorrowRecord, User> borrowerJoin = root.join("borrower", JoinType.INNER);
+                String keyword = "%" + queryDTO.getBorrowerKeyword().trim() + "%";
+                predicates.add(cb.or(
+                    cb.like(borrowerJoin.get("nickname"), keyword),
+                    cb.like(borrowerJoin.get("username"), keyword)
+                ));
+            }
+
+            if (StringUtils.hasText(queryDTO.getOwnerKeyword())) {
+                Join<BorrowRecord, User> ownerJoin = root.join("owner", JoinType.INNER);
+                String keyword = "%" + queryDTO.getOwnerKeyword().trim() + "%";
+                predicates.add(cb.or(
+                    cb.like(ownerJoin.get("nickname"), keyword),
+                    cb.like(ownerJoin.get("username"), keyword)
+                ));
+            }
+
+            if (StringUtils.hasText(queryDTO.getBookTitleKeyword())) {
+                Join<BorrowRecord, Book> bookJoin = root.join("book", JoinType.INNER);
+                String keyword = "%" + queryDTO.getBookTitleKeyword().trim() + "%";
+                predicates.add(cb.like(bookJoin.get("title"), keyword));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 }

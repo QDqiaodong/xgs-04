@@ -34,6 +34,17 @@
           </el-menu-item>
           <el-menu-item index="/borrow-apply">借阅申请</el-menu-item>
           <el-menu-item index="/borrow-history">借阅记录</el-menu-item>
+          <el-menu-item index="/overdue-management">
+            <el-badge
+              :value="overdueCount > 0 ? overdueCount : undefined"
+              :max="99"
+              :hidden="overdueCount === 0"
+              type="danger"
+              class="overdue-badge"
+            >
+              逾期管理
+            </el-badge>
+          </el-menu-item>
         </el-menu>
       </div>
     </el-header>
@@ -47,10 +58,11 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { loadFavorites, getFavoriteCount, ensureFavoriteCount } from '@/store/favorites'
 import { loadPendingApprovalCount, getPendingApprovalCount, borrowRecordStore } from '@/store/borrowRecord'
+import { borrowRecordAPI } from '@/api'
 
 const route = useRoute()
 const activeMenu = computed(() => route.path)
@@ -61,12 +73,26 @@ const pendingApprovalCount = computed(() => {
   return getPendingApprovalCount()
 })
 
+const overdueCount = ref(0)
+
+const loadOverdueCount = async () => {
+  try {
+    const res = await borrowRecordAPI.queryOverdue({ pageNum: 1, pageSize: 1 })
+    if (res.code === 200) {
+      overdueCount.value = res.data.total || 0
+    }
+  } catch (e) {
+    console.error('加载逾期数量失败:', e)
+  }
+}
+
 onMounted(async () => {
   const success = await loadFavorites()
   if (!success) {
     ensureFavoriteCount()
   }
   loadPendingApprovalCount()
+  loadOverdueCount()
 })
 </script>
 
@@ -113,6 +139,10 @@ onMounted(async () => {
 }
 
 .approval-badge :deep(.el-badge__content) {
+  border: none;
+}
+
+.overdue-badge :deep(.el-badge__content) {
   border: none;
 }
 

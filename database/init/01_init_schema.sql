@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS borrow_record (
     borrow_time DATETIME,
     return_time DATETIME,
     reviewed BOOLEAN DEFAULT FALSE NOT NULL,
+    overdue_days INT DEFAULT NULL COMMENT '逾期天数',
+    overdue_fine DECIMAL(10,2) DEFAULT NULL COMMENT '逾期罚金',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_book_id (book_id),
@@ -70,6 +72,7 @@ CREATE TABLE IF NOT EXISTS borrow_record (
     INDEX idx_owner_id (owner_id),
     INDEX idx_status (status),
     INDEX idx_create_time (create_time),
+    INDEX idx_overdue_days (overdue_days),
     FOREIGN KEY (book_id) REFERENCES book(id),
     FOREIGN KEY (borrower_id) REFERENCES user(id),
     FOREIGN KEY (owner_id) REFERENCES user(id)
@@ -136,11 +139,12 @@ CREATE TABLE IF NOT EXISTS borrow_rule (
     reservation_hours INT NOT NULL DEFAULT 48 COMMENT '预约保留时长（小时）',
     allow_renew BOOLEAN NOT NULL DEFAULT TRUE COMMENT '是否允许续借',
     max_renew_count INT NOT NULL DEFAULT 2 COMMENT '续借次数上限',
+    daily_fine_rate DOUBLE NOT NULL DEFAULT 0.5 COMMENT '每日罚金费率（元/天）',
     description VARCHAR(500) COMMENT '规则描述',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO borrow_rule (max_borrow_count, max_borrow_days, reservation_hours, allow_renew, max_renew_count, description)
-SELECT 5, 30, 48, TRUE, 2, '系统默认借阅规则'
+INSERT INTO borrow_rule (max_borrow_count, max_borrow_days, reservation_hours, allow_renew, max_renew_count, daily_fine_rate, description)
+SELECT 5, 30, 48, TRUE, 2, 0.5, '系统默认借阅规则'
 WHERE NOT EXISTS (SELECT 1 FROM borrow_rule);

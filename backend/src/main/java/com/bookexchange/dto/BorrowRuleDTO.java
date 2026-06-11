@@ -10,5 +10,6 @@ public class BorrowRuleDTO {
     private Integer reservationHours;
     private Boolean allowRenew;
     private Integer maxRenewCount;
+    private Double dailyFineRate;
     private String description;
 }

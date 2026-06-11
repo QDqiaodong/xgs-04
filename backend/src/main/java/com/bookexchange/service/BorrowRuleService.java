@@ -41,6 +41,9 @@ public class BorrowRuleService {
         if (dto.getMaxRenewCount() != null && dto.getMaxRenewCount() >= 0) {
             rule.setMaxRenewCount(dto.getMaxRenewCount());
         }
+        if (dto.getDailyFineRate() != null && dto.getDailyFineRate() >= 0) {
+            rule.setDailyFineRate(dto.getDailyFineRate());
+        }
         if (dto.getDescription() != null) {
             rule.setDescription(dto.getDescription());
         }
@@ -55,6 +58,7 @@ public class BorrowRuleService {
         rule.setReservationHours(48);
         rule.setAllowRenew(true);
         rule.setMaxRenewCount(2);
+        rule.setDailyFineRate(0.5);
         rule.setDescription("系统默认借阅规则");
         return borrowRuleRepository.save(rule);
     }

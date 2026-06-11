@@ -63,7 +63,9 @@ export const borrowRecordAPI = {
   confirmBorrow: (id) => api.put(`/borrow-records/${id}/confirm-borrow`),
   confirmReturn: (id) => api.put(`/borrow-records/${id}/confirm-return`),
   saveFilter: (userId, filter) => api.post(`/borrow-records/filter/${userId}`, filter),
-  getFilter: (userId) => api.get(`/borrow-records/filter/${userId}`)
+  getFilter: (userId) => api.get(`/borrow-records/filter/${userId}`),
+  identifyOverdue: () => api.post('/borrow-records/overdue/identify'),
+  queryOverdue: (params) => api.post('/borrow-records/overdue/query', params)
 }
 
 export const borrowRuleAPI = {
