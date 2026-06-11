@@ -3,6 +3,10 @@
     <div class="page-header">
       <h2 class="page-title">📚 我的藏书</h2>
       <div class="header-actions">
+        <el-button type="success" @click="handleExport">
+          <el-icon><Download /></el-icon>
+          导出
+        </el-button>
         <el-radio-group v-model="viewModeStore.viewMode" size="default" class="view-switch">
           <el-radio-button :value="VIEW_MODES.GRID">
             <el-icon><Grid /></el-icon>
@@ -62,18 +66,25 @@
       :owner-id="currentUserId"
       @submit="handleSubmit"
     />
+
+    <ExportDialog
+      v-model="exportDialogVisible"
+      type="book"
+      :export-params="exportParams"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Grid, List } from '@element-plus/icons-vue'
+import { Plus, Grid, List, Download } from '@element-plus/icons-vue'
 import { bookAPI } from '@/api'
 import { useMyBooksViewMode, VIEW_MODES } from '@/store/viewMode'
 import BookCard from '@/components/BookCard.vue'
 import BookListItem from '@/components/BookListItem.vue'
 import BookForm from '@/components/BookForm.vue'
+import ExportDialog from '@/components/ExportDialog.vue'
 
 const viewModeStore = useMyBooksViewMode()
 
@@ -82,10 +93,19 @@ const bookList = ref([])
 const formDialogVisible = ref(false)
 const editingBook = ref(null)
 const bookFormRef = ref(null)
+const exportDialogVisible = ref(false)
+
+const exportParams = computed(() => ({
+  ownerId: currentUserId
+}))
 
 const handleAdd = () => {
   editingBook.value = null
   formDialogVisible.value = true
+}
+
+const handleExport = () => {
+  exportDialogVisible.value = true
 }
 
 const loadBooks = async () => {

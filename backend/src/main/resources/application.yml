@@ -49,3 +49,9 @@ logging:
     com.bookexchange: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+export:
+  file:
+    path: /tmp/exports
+  download:
+    base-url: /api/exports/download

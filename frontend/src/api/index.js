@@ -93,4 +93,13 @@ export const reviewAPI = {
   hasReviewedBorrowRecord: (borrowRecordId) => api.get(`/reviews/borrow-record/${borrowRecordId}/exists`)
 }
 
+export const exportAPI = {
+  getBookFields: () => api.get('/exports/books/fields'),
+  getBorrowRecordFields: () => api.get('/exports/borrow-records/fields'),
+  createBookExport: (data) => api.post('/exports/books', data),
+  createBorrowRecordExport: (data) => api.post('/exports/borrow-records', data),
+  getTaskStatus: (taskId) => api.get(`/exports/${taskId}`),
+  getDownloadUrl: (taskId) => `/api/exports/download/${taskId}`
+}
+
 export default api

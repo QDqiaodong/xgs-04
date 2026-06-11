@@ -1,6 +1,12 @@
 <template>
   <div>
-    <h2 class="page-title">📋 借阅历史记录</h2>
+    <div class="page-header">
+      <h2 class="page-title">📋 借阅历史记录</h2>
+      <el-button type="success" @click="handleExport">
+        <el-icon><Download /></el-icon>
+        导出
+      </el-button>
+    </div>
 
     <el-card class="filter-card" shadow="never">
       <div class="filter-header" @click="filterCollapsed = !filterCollapsed">
@@ -228,15 +234,22 @@
         <el-button type="primary" :loading="submittingReview" @click="submitReview">提交评价</el-button>
       </template>
     </el-dialog>
+
+    <ExportDialog
+      v-model="exportDialogVisible"
+      type="borrowRecord"
+      :export-params="exportParams"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Filter, ArrowDown, Search, Refresh } from '@element-plus/icons-vue'
+import { Filter, ArrowDown, Search, Refresh, Download } from '@element-plus/icons-vue'
 import { borrowRecordAPI, categoryAPI, reviewAPI } from '@/api'
 import { borrowRecordStore } from '@/store/borrowRecord'
+import ExportDialog from '@/components/ExportDialog.vue'
 
 const currentUserId = 1
 const historyList = ref([])
@@ -254,6 +267,31 @@ const reviewFormRef = ref(null)
 const reviewForm = ref({
   rating: 5,
   content: ''
+})
+
+const exportDialogVisible = ref(false)
+
+const exportParams = computed(() => {
+  const params = {
+    currentUserId
+  }
+  if (filterForm.value.statuses && filterForm.value.statuses.length > 0) {
+    params.statuses = filterForm.value.statuses
+  }
+  if (filterForm.value.dateRange && filterForm.value.dateRange.length === 2) {
+    params.startDateFrom = filterForm.value.dateRange[0]
+    params.startDateTo = filterForm.value.dateRange[1]
+  }
+  if (filterForm.value.categoryId) {
+    params.categoryId = filterForm.value.categoryId
+  }
+  if (filterForm.value.borrowerKeyword && filterForm.value.borrowerKeyword.trim()) {
+    params.borrowerKeyword = filterForm.value.borrowerKeyword.trim()
+  }
+  if (filterForm.value.ownerKeyword && filterForm.value.ownerKeyword.trim()) {
+    params.ownerKeyword = filterForm.value.ownerKeyword.trim()
+  }
+  return params
 })
 
 const statusMap = {
@@ -451,6 +489,10 @@ const submitReview = async () => {
   }
 }
 
+const handleExport = () => {
+  exportDialogVisible.value = true
+}
+
 onMounted(() => {
   loadCategories()
   loadHistory()
@@ -462,8 +504,15 @@ watch(() => borrowRecordStore.updateVersion, () => {
 </script>
 
 <style scoped>
-.page-title {
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 16px;
+}
+
+.page-title {
+  margin: 0;
   font-size: 24px;
   color: #303133;
 }
