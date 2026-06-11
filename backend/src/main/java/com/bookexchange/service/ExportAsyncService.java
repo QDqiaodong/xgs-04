@@ -272,7 +272,9 @@ public class ExportAsyncService {
 
     private void generateExcel(File file, List<Map<String, Object>> dataList) {
         if (dataList.isEmpty()) {
-            EasyExcel.write(file).head(Arrays.asList("导出数据为空")).sheet("导出数据").doWrite(new ArrayList<>());
+            List<List<String>> emptyHead = Arrays.asList(Arrays.asList("提示"));
+            List<List<Object>> emptyData = Arrays.asList(Arrays.asList("导出数据为空"));
+            EasyExcel.write(file).head(emptyHead).sheet("导出数据").doWrite(emptyData);
             return;
         }
 
@@ -329,7 +331,7 @@ public class ExportAsyncService {
                 return owner != null ? owner.getNickname() : "";
             case "city":
                 City city = book.getCity();
-                return city != null ? city.getName() : "";
+                return city != null ? city.getCityName() : "";
             case "createTime":
                 return book.getCreateTime() != null ?
                     book.getCreateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "";
