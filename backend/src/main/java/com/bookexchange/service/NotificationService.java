@@ -3,6 +3,7 @@ package com.bookexchange.service;
 import com.bookexchange.dto.NotificationQueryDTO;
 import com.bookexchange.entity.BorrowRecord;
 import com.bookexchange.entity.Notification;
+import com.bookexchange.entity.Reservation;
 import com.bookexchange.repository.BorrowRecordRepository;
 import com.bookexchange.repository.NotificationRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -35,6 +36,10 @@ public class NotificationService {
     public static final String TYPE_APPROVAL_RESULT = "APPROVAL_RESULT";
     public static final String TYPE_DUE_REMINDER = "DUE_REMINDER";
     public static final String TYPE_RETURN_CONFIRM = "RETURN_CONFIRM";
+    public static final String TYPE_RESERVATION_CREATED = "RESERVATION_CREATED";
+    public static final String TYPE_RESERVATION_AVAILABLE = "RESERVATION_AVAILABLE";
+    public static final String TYPE_RESERVATION_EXPIRED = "RESERVATION_EXPIRED";
+    public static final String TYPE_RESERVATION_CANCELLED = "RESERVATION_CANCELLED";
 
     @Transactional(rollbackFor = Exception.class)
     public Notification createNotification(Long userId, String type, String title, String content, Long relatedId, String relatedType) {
@@ -155,6 +160,62 @@ public class NotificationService {
             "您已成功归还《" + bookTitle + "》，感谢使用！",
             record.getId(),
             "BORROW_RECORD"
+        );
+    }
+
+    public void notifyReservationCreated(Reservation reservation, int position) {
+        Long userId = reservation.getUser().getId();
+        String bookTitle = reservation.getBook().getTitle();
+
+        createNotification(
+            userId,
+            TYPE_RESERVATION_CREATED,
+            "预约成功",
+            "您已成功预约《" + bookTitle + "》，当前排队位置：第" + position + "位，请耐心等待。",
+            reservation.getId(),
+            "RESERVATION"
+        );
+    }
+
+    public void notifyReservationAvailable(Reservation reservation, int lockHours) {
+        Long userId = reservation.getUser().getId();
+        String bookTitle = reservation.getBook().getTitle();
+
+        createNotification(
+            userId,
+            TYPE_RESERVATION_AVAILABLE,
+            "预约图书可借阅",
+            "您预约的《" + bookTitle + "》已归还，现可为您保留" + lockHours + "小时，请尽快确认借阅，超时将自动顺延给下一位预约者。",
+            reservation.getId(),
+            "RESERVATION"
+        );
+    }
+
+    public void notifyReservationExpired(Reservation reservation) {
+        Long userId = reservation.getUser().getId();
+        String bookTitle = reservation.getBook().getTitle();
+
+        createNotification(
+            userId,
+            TYPE_RESERVATION_EXPIRED,
+            "预约已超时",
+            "您预约的《" + bookTitle + "》已超时而未确认借阅，预约已自动取消，顺延给下一位预约者。",
+            reservation.getId(),
+            "RESERVATION"
+        );
+    }
+
+    public void notifyReservationCancelled(Reservation reservation) {
+        Long userId = reservation.getUser().getId();
+        String bookTitle = reservation.getBook().getTitle();
+
+        createNotification(
+            userId,
+            TYPE_RESERVATION_CANCELLED,
+            "预约已取消",
+            "您已成功取消对《" + bookTitle + "》的预约。",
+            reservation.getId(),
+            "RESERVATION"
         );
     }
 

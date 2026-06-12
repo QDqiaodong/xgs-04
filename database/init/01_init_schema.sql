@@ -166,3 +166,26 @@ CREATE TABLE IF NOT EXISTS notification (
     INDEX idx_create_time (create_time),
     FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS reservation (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    book_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    owner_id BIGINT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'WAITING' COMMENT 'WAITING-排队中, NOTIFIED-已通知待确认, CONFIRMED-已确认借阅, CANCELLED-已取消, EXPIRED-已过期, COMPLETED-已完成借阅',
+    notify_time DATETIME COMMENT '通知时间',
+    expire_time DATETIME COMMENT '确认过期时间',
+    borrow_record_id BIGINT COMMENT '关联的借阅记录ID',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_book_id (book_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_owner_id (owner_id),
+    INDEX idx_status (status),
+    INDEX idx_book_status (book_id, status),
+    INDEX idx_create_time (create_time),
+    INDEX idx_expire_time (expire_time),
+    FOREIGN KEY (book_id) REFERENCES book(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
+    FOREIGN KEY (owner_id) REFERENCES user(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

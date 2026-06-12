@@ -7,6 +7,7 @@ import com.bookexchange.dto.ValidationResult;
 import com.bookexchange.entity.Book;
 import com.bookexchange.entity.BorrowRecord;
 import com.bookexchange.entity.BorrowRule;
+import com.bookexchange.entity.Reservation;
 import com.bookexchange.entity.User;
 import com.bookexchange.repository.BookRepository;
 import com.bookexchange.repository.BorrowRecordRepository;
@@ -44,6 +45,7 @@ public class BorrowRecordService {
     private final BorrowRuleService borrowRuleService;
     private final UserPointsService userPointsService;
     private final NotificationService notificationService;
+    private final ReservationService reservationService;
     private final RedisTemplate<String, Object> redisTemplate;
 
     private static final String BORROWED_RECORD_KEY = "borrowed:record:";
@@ -144,10 +146,6 @@ public class BorrowRecordService {
             return ValidationResult.fail("该图书不允许借阅");
         }
 
-        if (!book.getAvailable()) {
-            return ValidationResult.fail("该图书当前不可用");
-        }
-
         boolean hasActiveBorrow = borrowRecordRepository.existsByBookIdAndBorrowerIdAndStatusIn(
             dto.getBookId(), dto.getBorrowerId(), ACTIVE_STATUSES
         );
@@ -155,11 +153,23 @@ public class BorrowRecordService {
             return ValidationResult.fail("您已对该图书存在借阅申请，请勿重复提交");
         }
 
-        long bookActiveCount = borrowRecordRepository.countByBookIdAndStatusIn(
-            dto.getBookId(), ACTIVE_STATUSES
+        Reservation activeReservation = reservationService.getActiveReservationForUserAndBook(
+            dto.getBorrowerId(), dto.getBookId()
         );
-        if (bookActiveCount > 0) {
-            return ValidationResult.fail("该图书已被他人申请借阅，暂时不可用");
+        boolean isReservationUser = activeReservation != null
+            && Reservation.STATUS_NOTIFIED.equals(activeReservation.getStatus());
+
+        if (!isReservationUser) {
+            if (!book.getAvailable()) {
+                return ValidationResult.fail("该图书当前不可用，您可以预约排队");
+            }
+
+            long bookActiveCount = borrowRecordRepository.countByBookIdAndStatusIn(
+                dto.getBookId(), ACTIVE_STATUSES
+            );
+            if (bookActiveCount > 0) {
+                return ValidationResult.fail("该图书已被他人申请借阅，暂时不可用，您可以预约排队");
+            }
         }
 
         BorrowRule rule = borrowRuleService.getBorrowRule();
@@ -217,6 +227,15 @@ public class BorrowRecordService {
 
             BorrowRecord saved = borrowRecordRepository.save(record);
             notificationService.notifyBorrowRequest(saved);
+
+            Reservation activeReservation = reservationService.getActiveReservationForUserAndBook(
+                dto.getBorrowerId(), dto.getBookId()
+            );
+            if (activeReservation != null
+                && Reservation.STATUS_NOTIFIED.equals(activeReservation.getStatus())) {
+                reservationService.confirmBorrowReservation(activeReservation.getId(), dto.getBorrowerId());
+            }
+
             return saved;
         } finally {
             redisTemplate.delete(lockKey);
@@ -296,7 +315,17 @@ public class BorrowRecordService {
 
         record.setStatus("BORROWING");
         record.setBorrowTime(LocalDateTime.now());
-        return borrowRecordRepository.save(record);
+        BorrowRecord saved = borrowRecordRepository.save(record);
+
+        Reservation reservation = reservationService.getActiveReservationForUserAndBook(
+            record.getBorrower().getId(), record.getBook().getId()
+        );
+        if (reservation != null
+            && Reservation.STATUS_CONFIRMED.equals(reservation.getStatus())) {
+            reservationService.linkBorrowRecord(reservation.getId(), id);
+        }
+
+        return saved;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -326,7 +355,14 @@ public class BorrowRecordService {
 
         record.setStatus("RETURNED");
         record.setReturnTime(LocalDateTime.now());
-        bookService.updateBookAvailability(record.getBook().getId(), true);
+
+        boolean hasWaitingReservations = reservationService.getReservationsByBookId(record.getBook().getId())
+            .stream()
+            .anyMatch(r -> Reservation.STATUS_WAITING.equals(r.getStatus()));
+
+        if (!hasWaitingReservations) {
+            bookService.updateBookAvailability(record.getBook().getId(), true);
+        }
 
         BorrowRecord saved = borrowRecordRepository.save(record);
 
@@ -337,6 +373,11 @@ public class BorrowRecordService {
         }
 
         notificationService.notifyReturnConfirm(saved);
+
+        if (hasWaitingReservations) {
+            reservationService.notifyNextWaiter(record.getBook().getId());
+        }
+
         redisTemplate.delete(BORROWED_RECORD_KEY + id);
         return saved;
     }
