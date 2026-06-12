@@ -382,14 +382,29 @@ const buildQueryParams = () => {
   return params
 }
 
-const loadHistory = async () => {
+const loadHistory = async (resetPage = false) => {
+  if (resetPage) {
+    currentPage.value = 1
+  }
   loading.value = true
   try {
     const params = buildQueryParams()
     const res = await borrowRecordAPI.query(params)
     if (res.code === 200) {
+      const newTotal = res.data.total
+      const maxPage = Math.max(1, Math.ceil(newTotal / pageSize.value))
+      if (currentPage.value > maxPage) {
+        currentPage.value = maxPage
+        const adjustedParams = buildQueryParams()
+        const adjustedRes = await borrowRecordAPI.query(adjustedParams)
+        if (adjustedRes.code === 200) {
+          historyList.value = adjustedRes.data.list
+          total.value = adjustedRes.data.total
+          return
+        }
+      }
       historyList.value = res.data.list
-      total.value = res.data.total
+      total.value = newTotal
     } else {
       ElMessage.error(res.message || '加载历史记录失败')
     }
@@ -499,7 +514,7 @@ onMounted(() => {
 })
 
 watch(() => borrowRecordStore.updateVersion, () => {
-  loadHistory()
+  loadHistory(true)
 })
 </script>
 

@@ -279,14 +279,29 @@ const buildQueryParams = () => {
   return params
 }
 
-const loadOverdueList = async () => {
+const loadOverdueList = async (resetPage = false) => {
+  if (resetPage) {
+    currentPage.value = 1
+  }
   loading.value = true
   try {
     const params = buildQueryParams()
     const res = await borrowRecordAPI.queryOverdue(params)
     if (res.code === 200) {
+      const newTotal = res.data.total
+      const maxPage = Math.max(1, Math.ceil(newTotal / pageSize.value))
+      if (currentPage.value > maxPage) {
+        currentPage.value = maxPage
+        const adjustedParams = buildQueryParams()
+        const adjustedRes = await borrowRecordAPI.queryOverdue(adjustedParams)
+        if (adjustedRes.code === 200) {
+          overdueList.value = adjustedRes.data.list
+          total.value = adjustedRes.data.total
+          return
+        }
+      }
       overdueList.value = res.data.list
-      total.value = res.data.total
+      total.value = newTotal
     } else {
       ElMessage.error(res.message || '加载逾期记录失败')
     }
@@ -364,7 +379,7 @@ const confirmReturnAction = async () => {
     if (res.code === 200) {
       ElMessage.success('归还成功，逾期罚金已结算')
       returnDialogVisible.value = false
-      loadOverdueList()
+      loadOverdueList(true)
     } else {
       ElMessage.error(res.message || '归还失败')
     }
