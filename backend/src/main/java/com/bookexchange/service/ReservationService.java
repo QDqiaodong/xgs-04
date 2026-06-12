@@ -247,7 +247,7 @@ public class ReservationService {
         if (nextOpt.isPresent()) {
             Reservation nextReservation = nextOpt.get();
             int reservationHours = borrowRuleService.getBorrowRule().getReservationHours();
-            if (reservationHours == null || reservationHours <= 0) {
+            if (reservationHours <= 0) {
                 reservationHours = 24;
             }
 
