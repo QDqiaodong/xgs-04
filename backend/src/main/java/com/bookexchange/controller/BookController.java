@@ -8,6 +8,7 @@ import com.bookexchange.dto.BookTagDTO;
 import com.bookexchange.dto.Result;
 import com.bookexchange.entity.Book;
 import com.bookexchange.service.BookService;
+import com.bookexchange.service.BrowseFootprintService;
 import com.bookexchange.service.ReviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -22,6 +23,7 @@ public class BookController {
 
     private final BookService bookService;
     private final ReviewService reviewService;
+    private final BrowseFootprintService browseFootprintService;
 
     @PostMapping("/query")
     public Result<Page<Book>> queryBooks(@RequestBody BookQueryDTO queryDTO) {
@@ -31,10 +33,13 @@ public class BookController {
     }
 
     @GetMapping("/{id}")
-    public Result<Book> getBookById(@PathVariable Long id) {
+    public Result<Book> getBookById(@PathVariable Long id, @RequestParam(required = false) Long userId) {
         Book book = bookService.getBookById(id);
         if (book != null) {
             enrichBookWithReviewStats(book);
+            if (userId != null) {
+                browseFootprintService.recordFootprint(userId, id);
+            }
             return Result.success(book);
         }
         return Result.error("图书不存在");
