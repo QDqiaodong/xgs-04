@@ -109,4 +109,16 @@ export const notificationAPI = {
   markAllAsRead: (userId) => api.put('/notifications/read-all', null, { params: { userId } })
 }
 
+export const reservationAPI = {
+  validate: (data) => api.post('/reservations/validate', data),
+  create: (data) => api.post('/reservations', data),
+  getById: (id) => api.get(`/reservations/${id}`),
+  getByUser: (userId) => api.get(`/reservations/user/${userId}`),
+  getByBook: (bookId) => api.get(`/reservations/book/${bookId}`),
+  query: (params) => api.post('/reservations/query', params),
+  getPosition: (id) => api.get(`/reservations/${id}/position`),
+  cancel: (id, userId) => api.delete(`/reservations/${id}/user/${userId}`),
+  confirmBorrow: (id, userId) => api.put(`/reservations/${id}/confirm/user/${userId}`)
+}
+
 export default api

@@ -11,6 +11,8 @@ public class BorrowRecordQueryDTO {
 
     private Long currentUserId;
 
+    private Long bookId;
+
     private List<String> statuses;
 
     private LocalDate startDateFrom;

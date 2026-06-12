@@ -87,6 +87,10 @@ public class BorrowRecordService {
                 ));
             }
 
+            if (queryDTO.getBookId() != null) {
+                predicates.add(cb.equal(root.get("book").get("id"), queryDTO.getBookId()));
+            }
+
             if (queryDTO.getStatuses() != null && !queryDTO.getStatuses().isEmpty()) {
                 predicates.add(root.get("status").in(queryDTO.getStatuses()));
             }
