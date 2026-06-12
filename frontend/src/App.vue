@@ -45,6 +45,17 @@
               逾期管理
             </el-badge>
           </el-menu-item>
+          <el-menu-item index="/notifications">
+            <el-badge
+              :value="notificationUnreadCount > 0 ? notificationUnreadCount : undefined"
+              :max="99"
+              :hidden="notificationUnreadCount === 0"
+              type="danger"
+              class="notification-badge"
+            >
+              消息中心
+            </el-badge>
+          </el-menu-item>
         </el-menu>
       </div>
     </el-header>
@@ -62,6 +73,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { loadFavorites, getFavoriteCount, ensureFavoriteCount } from '@/store/favorites'
 import { loadPendingApprovalCount, getPendingApprovalCount, borrowRecordStore } from '@/store/borrowRecord'
+import { loadUnreadCount as loadNotificationUnreadCount, getUnreadCount as getNotificationUnreadCount, notificationStore } from '@/store/notification'
 import { borrowRecordAPI } from '@/api'
 
 const route = useRoute()
@@ -74,6 +86,11 @@ const pendingApprovalCount = computed(() => {
 })
 
 const overdueCount = ref(0)
+
+const notificationUnreadCount = computed(() => {
+  notificationStore.updateVersion
+  return getNotificationUnreadCount()
+})
 
 const loadOverdueCount = async () => {
   try {
@@ -93,6 +110,7 @@ onMounted(async () => {
   }
   loadPendingApprovalCount()
   loadOverdueCount()
+  loadNotificationUnreadCount()
 })
 </script>
 
@@ -143,6 +161,10 @@ onMounted(async () => {
 }
 
 .overdue-badge :deep(.el-badge__content) {
+  border: none;
+}
+
+.notification-badge :deep(.el-badge__content) {
   border: none;
 }
 

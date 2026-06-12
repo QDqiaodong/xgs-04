@@ -148,3 +148,21 @@ CREATE TABLE IF NOT EXISTS borrow_rule (
 INSERT INTO borrow_rule (max_borrow_count, max_borrow_days, reservation_hours, allow_renew, max_renew_count, daily_fine_rate, description)
 SELECT 5, 30, 48, TRUE, 2, 0.5, '系统默认借阅规则'
 WHERE NOT EXISTS (SELECT 1 FROM borrow_rule);
+
+CREATE TABLE IF NOT EXISTS notification (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    type VARCHAR(30) NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    content VARCHAR(500) NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE NOT NULL,
+    related_id BIGINT,
+    related_type VARCHAR(30),
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id),
+    INDEX idx_type (type),
+    INDEX idx_is_read (is_read),
+    INDEX idx_user_read (user_id, is_read),
+    INDEX idx_create_time (create_time),
+    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

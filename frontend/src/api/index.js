@@ -102,4 +102,11 @@ export const exportAPI = {
   getDownloadUrl: (taskId) => `/api/exports/download/${taskId}`
 }
 
+export const notificationAPI = {
+  query: (params) => api.post('/notifications/query', params),
+  getUnreadCount: (userId) => api.get('/notifications/unread-count', { params: { userId } }),
+  markAsRead: (id, userId) => api.put(`/notifications/${id}/read`, null, { params: { userId } }),
+  markAllAsRead: (userId) => api.put('/notifications/read-all', null, { params: { userId } })
+}
+
 export default api

@@ -40,6 +40,11 @@ const routes = [
     path: '/overdue-management',
     name: 'OverdueManagement',
     component: () => import('@/views/OverdueManagement.vue')
+  },
+  {
+    path: '/notifications',
+    name: 'NotificationCenter',
+    component: () => import('@/views/NotificationCenter.vue')
   }
 ]
 

@@ -43,6 +43,7 @@ public class BorrowRecordService {
     private final BookService bookService;
     private final BorrowRuleService borrowRuleService;
     private final UserPointsService userPointsService;
+    private final NotificationService notificationService;
     private final RedisTemplate<String, Object> redisTemplate;
 
     private static final String BORROWED_RECORD_KEY = "borrowed:record:";
@@ -214,7 +215,9 @@ public class BorrowRecordService {
             record.setEndDate(dto.getEndDate());
             record.setRemark(dto.getRemark());
 
-            return borrowRecordRepository.save(record);
+            BorrowRecord saved = borrowRecordRepository.save(record);
+            notificationService.notifyBorrowRequest(saved);
+            return saved;
         } finally {
             redisTemplate.delete(lockKey);
         }
@@ -268,6 +271,7 @@ public class BorrowRecordService {
         redisTemplate.opsForValue().set(BORROWED_RECORD_KEY + id, saved, 1, TimeUnit.HOURS);
 
         userPointsService.awardLendPoints(record.getOwner().getId(), id);
+        notificationService.notifyApprovalResult(saved, true);
 
         return saved;
     }
@@ -279,7 +283,9 @@ public class BorrowRecordService {
         }
 
         record.setStatus("REJECTED");
-        return borrowRecordRepository.save(record);
+        BorrowRecord saved = borrowRecordRepository.save(record);
+        notificationService.notifyApprovalResult(saved, false);
+        return saved;
     }
 
     public BorrowRecord confirmBorrow(Long id) {
@@ -330,6 +336,7 @@ public class BorrowRecordService {
             userPointsService.awardReturnOnTimePoints(record.getBorrower().getId(), id);
         }
 
+        notificationService.notifyReturnConfirm(saved);
         redisTemplate.delete(BORROWED_RECORD_KEY + id);
         return saved;
     }
