@@ -34,6 +34,12 @@ public class User implements Serializable {
     @Column(length = 200)
     private String avatar;
 
+    @Column(nullable = false)
+    private Integer points = 0;
+
+    @Column(nullable = false, length = 20)
+    private String level = "BRONZE";
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createTime;

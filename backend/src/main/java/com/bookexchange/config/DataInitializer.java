@@ -5,10 +5,12 @@ import com.bookexchange.entity.Category;
 import com.bookexchange.entity.City;
 import com.bookexchange.entity.Tag;
 import com.bookexchange.entity.User;
+import com.bookexchange.entity.UserLevel;
 import com.bookexchange.repository.BorrowRuleRepository;
 import com.bookexchange.repository.CategoryRepository;
 import com.bookexchange.repository.CityRepository;
 import com.bookexchange.repository.TagRepository;
+import com.bookexchange.repository.UserLevelRepository;
 import com.bookexchange.repository.UserRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
@@ -25,7 +27,8 @@ public class DataInitializer {
                                        CategoryRepository categoryRepository,
                                        UserRepository userRepository,
                                        TagRepository tagRepository,
-                                       BorrowRuleRepository borrowRuleRepository) {
+                                       BorrowRuleRepository borrowRuleRepository,
+                                       UserLevelRepository userLevelRepository) {
         return args -> {
             if (cityRepository.count() == 0) {
                 List<City> cities = Arrays.asList(
@@ -99,6 +102,16 @@ public class DataInitializer {
                 rule.setDescription("系统默认借阅规则");
                 borrowRuleRepository.save(rule);
             }
+
+            if (userLevelRepository.count() == 0) {
+                List<UserLevel> levels = Arrays.asList(
+                    createUserLevel("BRONZE", "青铜", 0, 3, 1, "🥉", "初始等级，可借阅3本图书"),
+                    createUserLevel("SILVER", "白银", 100, 5, 2, "🥈", "白银等级，可借阅5本图书"),
+                    createUserLevel("GOLD", "黄金", 500, 8, 3, "🥇", "黄金等级，可借阅8本图书"),
+                    createUserLevel("DIAMOND", "钻石", 1500, 12, 4, "💎", "钻石等级，可借阅12本图书")
+                );
+                userLevelRepository.saveAll(levels);
+            }
         };
     }
 
@@ -132,5 +145,17 @@ public class DataInitializer {
         tag.setDescription(description);
         tag.setColor(color);
         return tag;
+    }
+
+    private UserLevel createUserLevel(String code, String name, int minPoints, int maxBorrowCount, int sortOrder, String icon, String description) {
+        UserLevel level = new UserLevel();
+        level.setCode(code);
+        level.setName(name);
+        level.setMinPoints(minPoints);
+        level.setMaxBorrowCount(maxBorrowCount);
+        level.setSortOrder(sortOrder);
+        level.setIcon(icon);
+        level.setDescription(description);
+        return level;
     }
 }

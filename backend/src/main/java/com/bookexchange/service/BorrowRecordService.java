@@ -42,6 +42,7 @@ public class BorrowRecordService {
     private final UserRepository userRepository;
     private final BookService bookService;
     private final BorrowRuleService borrowRuleService;
+    private final UserPointsService userPointsService;
     private final RedisTemplate<String, Object> redisTemplate;
 
     private static final String BORROWED_RECORD_KEY = "borrowed:record:";
@@ -161,13 +162,14 @@ public class BorrowRecordService {
         }
 
         BorrowRule rule = borrowRuleService.getBorrowRule();
+        int maxBorrowCount = userPointsService.getMaxBorrowCount(dto.getBorrowerId());
 
         long activeCount = borrowRecordRepository.countByBorrowerIdAndStatusIn(
             dto.getBorrowerId(), ACTIVE_STATUSES
         );
-        if (activeCount >= rule.getMaxBorrowCount()) {
+        if (activeCount >= maxBorrowCount) {
             return ValidationResult.fail(
-                "已达最大借阅数量限制，当前最多可同时借阅 " + rule.getMaxBorrowCount() + " 本图书"
+                "已达最大借阅数量限制，当前等级最多可同时借阅 " + maxBorrowCount + " 本图书"
             );
         }
 
@@ -228,13 +230,14 @@ public class BorrowRecordService {
         }
 
         BorrowRule rule = borrowRuleService.getBorrowRule();
+        int maxBorrowCount = userPointsService.getMaxBorrowCount(record.getBorrower().getId());
 
         long activeCount = borrowRecordRepository.countByBorrowerIdAndStatusIn(
             record.getBorrower().getId(), ACTIVE_STATUSES
         );
-        if (activeCount >= rule.getMaxBorrowCount()) {
+        if (activeCount >= maxBorrowCount) {
             return ValidationResult.fail(
-                "借阅人已达最大借阅数量限制，当前最多可同时借阅 " + rule.getMaxBorrowCount() + " 本图书"
+                "借阅人已达最大借阅数量限制，当前等级最多可同时借阅 " + maxBorrowCount + " 本图书"
             );
         }
 
@@ -263,6 +266,9 @@ public class BorrowRecordService {
 
         BorrowRecord saved = borrowRecordRepository.save(record);
         redisTemplate.opsForValue().set(BORROWED_RECORD_KEY + id, saved, 1, TimeUnit.HOURS);
+
+        userPointsService.awardLendPoints(record.getOwner().getId(), id);
+
         return saved;
     }
 
@@ -297,20 +303,35 @@ public class BorrowRecordService {
             return null;
         }
 
-        if ("OVERDUE".equals(record.getStatus())) {
+        boolean wasOverdue = "OVERDUE".equals(record.getStatus());
+        int overdueDays = 0;
+
+        if (wasOverdue) {
             BorrowRule rule = borrowRuleService.getBorrowRule();
-            int overdueDays = calculateOverdueDays(record);
+            overdueDays = calculateOverdueDays(record);
             double dailyRate = rule.getDailyFineRate() != null ? rule.getDailyFineRate() : 0.5;
             record.setOverdueDays(overdueDays);
             record.setOverdueFine(Math.round(overdueDays * dailyRate * 100.0) / 100.0);
+        } else {
+            if (record.getEndDate() != null && LocalDate.now().isAfter(record.getEndDate())) {
+                overdueDays = (int) ChronoUnit.DAYS.between(record.getEndDate(), LocalDate.now());
+            }
         }
 
         record.setStatus("RETURNED");
         record.setReturnTime(LocalDateTime.now());
         bookService.updateBookAvailability(record.getBook().getId(), true);
 
+        BorrowRecord saved = borrowRecordRepository.save(record);
+
+        if (overdueDays > 0) {
+            userPointsService.deductOverduePoints(record.getBorrower().getId(), overdueDays, id);
+        } else {
+            userPointsService.awardReturnOnTimePoints(record.getBorrower().getId(), id);
+        }
+
         redisTemplate.delete(BORROWED_RECORD_KEY + id);
-        return borrowRecordRepository.save(record);
+        return saved;
     }
 
     public void saveUserFilterConditions(Long userId, Object filterConditions) {
