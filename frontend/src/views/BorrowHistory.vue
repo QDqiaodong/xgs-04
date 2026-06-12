@@ -259,6 +259,7 @@ const pageSize = ref(20)
 const total = ref(0)
 const filterCollapsed = ref(false)
 const categories = ref([])
+let requestId = 0
 
 const reviewDialogVisible = ref(false)
 const currentReviewRecord = ref(null)
@@ -386,17 +387,25 @@ const loadHistory = async (resetPage = false) => {
   if (resetPage) {
     currentPage.value = 1
   }
+  const myRequestId = ++requestId
   loading.value = true
   try {
     const params = buildQueryParams()
     const res = await borrowRecordAPI.query(params)
+    if (myRequestId !== requestId) {
+      return
+    }
     if (res.code === 200) {
       const newTotal = res.data.total
       const maxPage = Math.max(1, Math.ceil(newTotal / pageSize.value))
       if (currentPage.value > maxPage) {
         currentPage.value = maxPage
+        const adjustedRequestId = ++requestId
         const adjustedParams = buildQueryParams()
         const adjustedRes = await borrowRecordAPI.query(adjustedParams)
+        if (adjustedRequestId !== requestId) {
+          return
+        }
         if (adjustedRes.code === 200) {
           historyList.value = adjustedRes.data.list
           total.value = adjustedRes.data.total
@@ -409,21 +418,24 @@ const loadHistory = async (resetPage = false) => {
       ElMessage.error(res.message || '加载历史记录失败')
     }
   } catch (e) {
+    if (myRequestId !== requestId) {
+      return
+    }
     ElMessage.error('加载历史记录失败')
   } finally {
-    loading.value = false
+    if (myRequestId === requestId) {
+      loading.value = false
+    }
   }
 }
 
 const handleFilterChange = () => {
-  currentPage.value = 1
-  loadHistory()
+  loadHistory(true)
 }
 
 const resetFilter = () => {
   filterForm.value = defaultFilter()
-  currentPage.value = 1
-  loadHistory()
+  loadHistory(true)
 }
 
 const removeFilterTag = (key) => {
@@ -452,8 +464,7 @@ const handlePageChange = () => {
 }
 
 const handleSizeChange = () => {
-  currentPage.value = 1
-  loadHistory()
+  loadHistory(true)
 }
 
 const loadCategories = async () => {
